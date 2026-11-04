@@ -1,0 +1,20 @@
+{
+  "name": "junis",
+  "displayName": "Junis",
+  "description": "Operate the Junis multi-agent platform by conversation: connect, build and tune agent squads, run them, read results and improve them.",
+  "author": {
+    "name": "TOOEASY Inc.",
+    "email": "contact@junis.ai",
+    "url": "https://junis.ai"
+  },
+  "homepage": "https://junis.ai",
+  "license": "Apache-2.0",
+  "keywords": [
+    "junis",
+    "agents",
+    "multi-agent",
+    "orchestration",
+    "mcp",
+    "squad"
+  ]
+}

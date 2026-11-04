@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "junis": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/skills/junis/scripts/junis.mjs",
+        "mcp",
+        "--lazy"
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "junis",
+  "version": "0.1.0",
+  "description": "Operate the Junis multi-agent platform by conversation: connect, build and tune agent squads, run them, read results and improve them.",
+  "mcpServers": {
+    "junis": {
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}skills${/}junis${/}scripts${/}junis.mjs",
+        "mcp",
+        "--lazy"
+      ]
+    }
+  },
+  "contextFileName": "GEMINI.md"
+}

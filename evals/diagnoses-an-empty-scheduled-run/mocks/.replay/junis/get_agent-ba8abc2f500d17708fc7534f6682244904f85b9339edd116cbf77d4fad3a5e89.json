@@ -1,0 +1,10 @@
+{
+  "input": {
+    "organization_id": "3f2b8c1e-5a4d-4e9b-9c7a-1d2e3f4a5b6c",
+    "agent_id": "11111111-aaaa-4aaa-8aaa-000000000003"
+  },
+  "output": "{\"agent_id\":\"11111111-aaaa-4aaa-8aaa-000000000003\",\"name\":\"ReportWriter\",\"agent_type\":\"LLM_AGENT\",\"model\":\"northwind/atlas-3\",\"include_contents\":\"none\",\"output_key\":\"weekly_report\",\"tools\":[],\"instruction\":\"You write the weekly competitor report.\\n\\n<input>\\nCollected news:\\n{news_collected?}\\n</input>\\n\\n<output>\\nOne page, three sections, one per competitor.\\n</output>\\n\"}",
+  "verdict": "ok",
+  "recordedAt": "2026-09-29T06:17:29.947Z",
+  "model": null
+}

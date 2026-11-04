@@ -1,0 +1,16 @@
+{
+  "name": "junis-kit",
+  "description": "The Junis kit: one skill and one MCP server for operating Junis from a coding agent.",
+  "owner": {
+    "name": "TOOEASY Inc.",
+    "email": "contact@junis.ai"
+  },
+  "plugins": [
+    {
+      "name": "junis",
+      "source": "./",
+      "description": "Build, run and improve Junis agent squads by conversation",
+      "category": "productivity"
+    }
+  ]
+}

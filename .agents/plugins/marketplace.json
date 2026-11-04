@@ -1,0 +1,16 @@
+{
+  "name": "junis-kit",
+  "interface": {
+    "displayName": "Junis kit"
+  },
+  "plugins": [
+    {
+      "name": "junis",
+      "source": "./",
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

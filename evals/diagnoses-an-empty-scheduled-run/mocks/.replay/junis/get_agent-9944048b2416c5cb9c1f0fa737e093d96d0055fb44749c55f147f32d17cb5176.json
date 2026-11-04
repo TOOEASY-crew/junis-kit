@@ -1,0 +1,10 @@
+{
+  "input": {
+    "organization_id": "3f2b8c1e-5a4d-4e9b-9c7a-1d2e3f4a5b6c",
+    "agent_id": "orchestrator-acme"
+  },
+  "output": "{\"agent_id\": \"orchestrator-acme\", \"name\": \"Orchestrator_Acme\", \"agent_type\": \"LLM_AGENT\", \"model\": \"northwind/atlas-3\", \"include_contents\": \"default\", \"instruction\": \"You are the orchestrator of Acme.\\n\\n<routes>\\nWeekly report requests: hand over to WeeklyPipeline.\\nGreetings: answer yourself.\\n</routes>\\n\", \"tools\": [], \"relationships\": []}",
+  "verdict": "ok",
+  "recordedAt": "2026-09-29T06:17:37.607Z",
+  "model": null
+}

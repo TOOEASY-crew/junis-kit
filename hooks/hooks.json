@@ -1,0 +1,27 @@
+{
+  "description": "Ask the user before a Junis call that deletes or overwrites something.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__plugin_junis_junis__.*|mcp__junis__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/confirm-destructive.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/confirm-destructive.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

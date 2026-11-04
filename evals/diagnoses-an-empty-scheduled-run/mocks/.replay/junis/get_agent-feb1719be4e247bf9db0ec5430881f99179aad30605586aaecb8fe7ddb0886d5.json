@@ -1,0 +1,10 @@
+{
+  "input": {
+    "organization_id": "3f2b8c1e-5a4d-4e9b-9c7a-1d2e3f4a5b6c",
+    "agent_id": "11111111-aaaa-4aaa-8aaa-000000000002"
+  },
+  "output": "{\"agent_id\":\"11111111-aaaa-4aaa-8aaa-000000000002\",\"name\":\"NewsCollector\",\"agent_type\":\"LLM_AGENT\",\"model\":\"northwind/atlas-3-mini\",\"include_contents\":\"default\",\"output_key\":\"collected_news\",\"tools\":[\"claude_web_fetch\"],\"instruction\":\"You collect news from the three competitor pages.\\n\\n<rules>\\n1. Fetch each page with the fetch tool.\\n2. After the last fetch you are done.\\n</rules>\\n\"}",
+  "verdict": "ok",
+  "recordedAt": "2026-09-29T06:17:28.373Z",
+  "model": null
+}

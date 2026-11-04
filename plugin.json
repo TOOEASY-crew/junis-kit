@@ -1,0 +1,36 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "junis",
+  "version": "0.1.0",
+  "description": "Operate the Junis multi-agent platform by conversation: connect, build and tune agent squads, run them, read results and improve them.",
+  "author": {
+    "name": "TOOEASY Inc.",
+    "email": "contact@junis.ai",
+    "url": "https://junis.ai"
+  },
+  "homepage": "https://junis.ai",
+  "license": "Apache-2.0",
+  "keywords": [
+    "junis",
+    "agents",
+    "multi-agent",
+    "orchestration",
+    "mcp",
+    "squad"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Junis",
+        "shortDescription": "Build, run and improve Junis agent squads by conversation",
+        "developerName": "TOOEASY Inc.",
+        "category": "Productivity",
+        "defaultPrompt": [
+          "Check my Junis connection",
+          "Build a Junis squad that collects our product reviews and sends me a summary every Monday morning",
+          "Find out why yesterday's scheduled Junis run failed and fix it"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.junis-kit-backup-*
+dist/
+.env
+credentials.json
+evals/results/
+research/

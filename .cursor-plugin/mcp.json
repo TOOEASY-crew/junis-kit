@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "junis": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CURSOR_PLUGIN_ROOT}/skills/junis/scripts/junis.mjs",
+        "mcp",
+        "--lazy"
+      ]
+    }
+  }
+}

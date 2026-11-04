@@ -1,0 +1,38 @@
+{
+  "name": "junis-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Operate the Junis multi-agent platform from any coding agent: one skill, one MCP server, one installer.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "homepage": "https://junis.ai",
+  "bin": {
+    "junis-kit": "skills/junis/scripts/junis.mjs"
+  },
+  "files": [
+    "skills/",
+    "hooks/",
+    ".claude-plugin/",
+    ".codex-plugin/",
+    ".cursor-plugin/",
+    ".agents/",
+    ".mcp.json",
+    "mcp.json",
+    "plugin.json",
+    "gemini-extension.json",
+    "GEMINI.md",
+    "kit.json",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "manifests": "node scripts/build-manifests.mjs",
+    "check": "node scripts/build-manifests.mjs --check && node --test tests/*.test.mjs"
+  },
+  "keywords": ["junis", "agents", "mcp", "skills", "multi-agent"]
+}

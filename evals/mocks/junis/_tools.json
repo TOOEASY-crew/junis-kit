@@ -1,0 +1,4040 @@
+{
+ "tools": [
+  {
+   "name": "junis_status",
+   "description": "Report whether this machine is connected to Junis, which organizations the key can reach and which one is the default. Call this first in a session. When not connected it returns the exact steps to relay to the user.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "openWorldHint": false
+   }
+  },
+  {
+   "name": "junis_connect",
+   "description": "Connect this machine to Junis. method \"browser\" (nothing to copy): returns a link where the user approves a key request; call again after they approve. method \"clipboard\": reads a key the user has copied. The key is verified, stored owner-only and never returned.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "method": {
+      "type": "string",
+      "enum": [
+       "clipboard",
+       "browser"
+      ],
+      "description": "Defaults to clipboard."
+     },
+     "restart": {
+      "type": "boolean",
+      "description": "browser: start a new request."
+     },
+     "clear_clipboard": {
+      "type": "boolean",
+      "description": "clipboard: empty it after reading. Defaults to true."
+     }
+    },
+    "additionalProperties": false
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "junis_use_organization",
+   "description": "Set the default organization for calls that do not name one. Accepts the organization name, slug or UUID. Stored locally; it does not change what the user sees in the Junis web app.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "organization": {
+      "type": "string",
+      "description": "Name, slug or UUID."
+     }
+    },
+    "required": [
+     "organization"
+    ],
+    "additionalProperties": false
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+   }
+  },
+  {
+   "name": "junis_run",
+   "description": "Send a request to a Junis squad and get its answer. Targets the organization orchestrator by default, or one agent by name. Waits up to wait_seconds; a run that needs longer returns status \"running\" with a session_id to pass to junis_run_status. Pass session_id to continue an earlier conversation.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "message": {
+      "type": "string",
+      "description": "The request, in the user's words."
+     },
+     "agent": {
+      "type": "string",
+      "description": "Agent name or id. Defaults to \"orchestrator\"."
+     },
+     "session_id": {
+      "type": "string",
+      "description": "Continue this session instead of starting a new one. A session that is still running is not sent to again."
+     },
+     "organization_id": {
+      "type": "string",
+      "description": "UUID of the organization to act in. Defaults to the stored default organization. Pass it whenever you built or changed things in another organization."
+     },
+     "wait_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 50,
+      "description": "Defaults to 45."
+     }
+    },
+    "required": [
+     "message"
+    ],
+    "additionalProperties": false
+   },
+   "annotations": {
+    "title": "Run a Junis squad",
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "junis_run_status",
+   "description": "Check a run started with junis_run. Waits up to wait_seconds for it to finish and returns the answer, or status \"running\". Pass the organization_id the run was started in.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "session_id": {
+      "type": "string"
+     },
+     "organization_id": {
+      "type": "string",
+      "description": "UUID of the organization to act in. Defaults to the stored default organization. Pass it whenever you built or changed things in another organization."
+     },
+     "wait_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 50,
+      "description": "Defaults to 30."
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "additionalProperties": false
+   },
+   "annotations": {
+    "title": "Check a Junis run",
+    "readOnlyHint": true,
+    "openWorldHint": false
+   }
+  },
+  {
+   "name": "junis_api",
+   "description": "Call the Junis External API directly, for features without a dedicated tool (Knowledge/Second Brain under /brain, credential vault under /management/me/secrets, accounts for another app's users under /management/users, direct agent calls). The path is relative to the External API root, for example /brain/sources.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "method": {
+      "type": "string",
+      "enum": [
+       "GET",
+       "POST",
+       "PUT",
+       "PATCH",
+       "DELETE"
+      ],
+      "description": "Defaults to GET."
+     },
+     "path": {
+      "type": "string",
+      "description": "For example /brain/search."
+     },
+     "query": {
+      "type": "object",
+      "description": "Query string parameters."
+     },
+     "body": {
+      "type": "object",
+      "description": "JSON body for POST, PUT and PATCH."
+     },
+     "organization_id": {
+      "type": "string",
+      "description": "UUID of the organization to act in. Defaults to the stored default organization. Pass it whenever you built or changed things in another organization."
+     },
+     "profile": {
+      "type": "string",
+      "description": "A stored profile to use for this call only, for example \"partner\" for accounts made for another app's users. Defaults to the profile in use."
+     },
+     "confirmed": {
+      "type": "boolean",
+      "description": "Required as true, after the user agreed, for DELETE, PUT, PATCH and POSTs that replace data."
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "additionalProperties": false
+   },
+   "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": true,
+    "openWorldHint": true
+   }
+  },
+  {
+   "name": "junis_lint_instruction",
+   "description": "Check agent instruction text before saving it. Reports curly-brace expressions the runtime reads as session variables (an unknown one silently becomes empty text) and secrets written in plain text.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "text": {
+      "type": "string",
+      "description": "The full instruction text."
+     },
+     "allowed_keys": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "output_key names that an earlier agent in the same run is known to write."
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "additionalProperties": false
+   },
+   "annotations": {
+    "readOnlyHint": true,
+    "openWorldHint": false
+   }
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List organizations"
+   },
+   "description": "List all organizations the current user belongs to — the discovery tool that RESOLVES organization ids.\n\nCall it with NO organization_id (or a real UUID). Names and slugs are not ids and are ignored here —\nanywhere else they are rejected with 403, which does not mean you lack access.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "Optional organization UUID. Leave empty; non-UUID values are ignored."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_organizations",
+   "title": "List organizations"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create organization"
+   },
+   "description": "Create a new organization.",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Display name."
+     },
+     "slug": {
+      "type": "string",
+      "description": "URL-safe identifier, lowercase-hyphen, unique."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "Organization description."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "name",
+     "slug"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "create_organization",
+   "title": "Create organization"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get organization"
+   },
+   "description": "Get detailed information about a specific organization.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "type": "string",
+      "description": "UUID of the organization to retrieve."
+     }
+    },
+    "required": [
+     "organization_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_organization",
+   "title": "Get organization"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Update organization"
+   },
+   "description": "Update an organization. Only provided fields are changed.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "type": "string",
+      "description": "UUID of the organization to update."
+     },
+     "name": {
+      "default": "",
+      "type": "string",
+      "description": "New display name."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "New description."
+     },
+     "clear_fields": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Fields to empty (an empty description is otherwise ignored). Allowed: description.\nThe result lists them under \"cleared\"."
+     }
+    },
+    "required": [
+     "organization_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_organization",
+   "title": "Update organization"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Switch default organization (account-wide)"
+   },
+   "description": "Change the user's DEFAULT organization — for the web app and for every API/MCP client of this account.\n\nIt stays in effect until switched again, and applies to every later call that omits organization_id,\nfrom any client. To work in an organization, pass organization_id on each call instead — that is\nper-call and changes nothing for anyone else. Use this only when the user asks to change their default.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "type": "string",
+      "description": "UUID of the organization to make the default."
+     }
+    },
+    "required": [
+     "organization_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "switch_organization",
+   "title": "Switch default organization (account-wide)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List agents"
+   },
+   "description": "List all agents in the current organization.",
+   "inputSchema": {
+    "properties": {
+     "agent_type": {
+      "default": "",
+      "type": "string",
+      "description": "LLM_AGENT|SEQUENTIAL_AGENT|PARALLEL_AGENT|LOOP_AGENT. Empty=all."
+     },
+     "include_inactive": {
+      "default": false,
+      "type": "boolean",
+      "description": "Include inactive agents."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "name": {
+      "default": "",
+      "type": "string",
+      "description": "정확히 일치하는 에이전트 이름으로 필터(0~1건). 이름으로 특정 에이전트의 agent_id 를 해석할 때 사용 — 대형 조직에서 전체 목록 절단/100건 상한을 우회한다."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_agents",
+   "title": "List agents"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create agent"
+   },
+   "description": "Create a new agent. LLM_AGENT requires name+model+instruction.",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Lowercase-hyphen identifier, unique within org."
+     },
+     "agent_type": {
+      "type": "string",
+      "description": "LLM_AGENT | RAG_AGENT | SEQUENTIAL_AGENT | PARALLEL_AGENT | LOOP_AGENT."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "Human-readable description."
+     },
+     "model": {
+      "default": "",
+      "type": "string",
+      "description": "LLM model identifier (LLM_AGENT only)."
+     },
+     "instruction": {
+      "default": "",
+      "type": "string",
+      "description": "System instruction (LLM_AGENT only)."
+     },
+     "output_key": {
+      "default": "",
+      "type": "string",
+      "description": "State key for output in sequential flows."
+     },
+     "temperature": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "0.0-1.0 (LLM_AGENT, backend default 0.7). Leave unset for Claude 5 / Opus 4.7+ and\nGPT-5.x / GPT-6 (the platform strips it for those APIs); Gemini works best at 1.0."
+     },
+     "max_output_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Max response tokens (LLM_AGENT, default 64000)."
+     },
+     "reasoning_effort": {
+      "default": "",
+      "type": "string",
+      "description": "\"none\" | \"low\" | \"medium\" | \"high\" | \"max\". Claude 5 + MCP works with any value."
+     },
+     "tools": {
+      "anyOf": [
+       {
+        "items": {},
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Tool function names (LLM_AGENT only)."
+     },
+     "rag_tools": {
+      "anyOf": [
+       {
+        "items": {},
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "RAG tool names like \"rag_<datastore_id>\"."
+     },
+     "mcp_platforms": {
+      "anyOf": [
+       {
+        "items": {},
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "MCP platform_ids to link."
+     },
+     "web_search_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Enable web search."
+     },
+     "vision_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Enable vision."
+     },
+     "streaming_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Enable SSE streaming (default True)."
+     },
+     "is_tool_agent": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Callable as tool by other agents."
+     },
+     "max_iterations": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "LOOP_AGENT max iterations (default 10)."
+     },
+     "max_llm_calls": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Max LLM calls per run (default 300). Read ONLY on the organization orchestrator\n(orchestrator-<slug>); values on sub-agents are stored but never used."
+     },
+     "include_contents": {
+      "default": "",
+      "type": "string",
+      "description": "\"default\" | \"none\". \"none\" = the agent sees only the current turn — when it is\nreached via transfer or as a workflow child it does NOT see the user's message; give it all\ninput via {output_key?} state placeholders or keep \"default\"."
+     },
+     "profile_image_url": {
+      "default": "",
+      "type": "string",
+      "description": "Profile image URL."
+     },
+     "tool_prefix": {
+      "default": "",
+      "type": "string",
+      "description": "Stored only — NOT applied at runtime (MCP tools are already namespaced\n\"<platform_id>_<tool>\"). Leave empty."
+     },
+     "aggregation_instruction": {
+      "default": "",
+      "type": "string",
+      "description": "Stored only — NOT applied at runtime (no merge step is generated).\nMerge PARALLEL results with a following LLM agent that reads the children's {output_key?}."
+     },
+     "wallet_address": {
+      "default": "",
+      "type": "string",
+      "description": "Ethereum wallet for payments."
+     },
+     "payment_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Enable pay-per-use."
+     },
+     "price_per_use_usdc_micro": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Price in USDC micro-units."
+     },
+     "payment_network": {
+      "default": "",
+      "type": "string",
+      "description": "\"base-sepolia\" | \"base\"."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "name",
+     "agent_type"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "create_agent",
+   "title": "Create agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get agent"
+   },
+   "description": "Get detailed information about a specific agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to retrieve."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_agent",
+   "title": "Get agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Update agent"
+   },
+   "description": "Update an agent. Only provided fields are changed.\nSame parameters as create_agent, plus agent_id and is_active.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to update."
+     },
+     "name": {
+      "default": "",
+      "type": "string"
+     },
+     "description": {
+      "default": "",
+      "type": "string"
+     },
+     "model": {
+      "default": "",
+      "type": "string"
+     },
+     "instruction": {
+      "default": "",
+      "type": "string"
+     },
+     "is_active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Enable or disable the agent."
+     },
+     "output_key": {
+      "default": "",
+      "type": "string"
+     },
+     "temperature": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "max_output_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "reasoning_effort": {
+      "default": "",
+      "type": "string"
+     },
+     "tools": {
+      "anyOf": [
+       {
+        "items": {},
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "rag_tools": {
+      "anyOf": [
+       {
+        "items": {},
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "mcp_platforms": {
+      "anyOf": [
+       {
+        "items": {},
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "web_search_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "vision_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "streaming_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "is_tool_agent": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "max_iterations": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "max_llm_calls": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "include_contents": {
+      "default": "",
+      "type": "string"
+     },
+     "profile_image_url": {
+      "default": "",
+      "type": "string"
+     },
+     "tool_prefix": {
+      "default": "",
+      "type": "string"
+     },
+     "aggregation_instruction": {
+      "default": "",
+      "type": "string"
+     },
+     "wallet_address": {
+      "default": "",
+      "type": "string"
+     },
+     "payment_enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "price_per_use_usdc_micro": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "payment_network": {
+      "default": "",
+      "type": "string"
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "clear_fields": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Fields to empty — empty strings are otherwise ignored. Allowed: description,\nprofile_image_url, tool_prefix, wallet_address, tools, rag_tools, mcp_platforms (unlinks all).\nTo remove instruction text use patch_agent_instruction. The result lists them under \"cleared\"."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_agent",
+   "title": "Update agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Patch agent instruction"
+   },
+   "description": "Edit part of an agent's system instruction WITHOUT resending the whole text.\n\nPreferred over update_agent(instruction=...) for any change smaller than a full rewrite —\ncheaper and no risk of mangling untouched sections. Read the current instruction with get_agent\nfirst; old_string must be copied VERBATIM (byte-exact, incl. line breaks) and occur exactly once\n(else include surrounding lines or set replace_all=True). new_string=\"\" deletes the passage.\nSaves through the same path as update_agent (validation, cache invalidation, version record).",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent (LLM or orchestrator agent — must have an instruction)."
+     },
+     "old_string": {
+      "type": "string",
+      "description": "Exact current text to replace."
+     },
+     "new_string": {
+      "default": "",
+      "type": "string",
+      "description": "Replacement text. Empty string deletes old_string."
+     },
+     "replace_all": {
+      "default": false,
+      "type": "boolean",
+      "description": "Replace every occurrence instead of requiring a unique match."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "old_string"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "patch_agent_instruction",
+   "title": "Patch agent instruction"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete agent"
+   },
+   "description": "Delete an agent and its sub-agent relationships.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to delete."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_agent",
+   "title": "Delete agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Clone agent"
+   },
+   "description": "Clone an agent with all configuration.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to clone."
+     },
+     "new_name": {
+      "default": "",
+      "type": "string",
+      "description": "Clone name. Defaults to \"<original>-copy\"."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "clone_agent",
+   "title": "Clone agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List assignable tools"
+   },
+   "description": "List all available tools that can be assigned to agents.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_tools",
+   "title": "List assignable tools"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List registered LLM models"
+   },
+   "description": "List LLM models registered on the platform — the ONLY valid values for create_agent/update_agent `model`.\n\nUse this instead of memorized model names: registration changes without a server release, so\nnames remembered from elsewhere go stale. Embedding models are excluded. RAG_AGENT additionally\nrequires a Gemini model.",
+   "inputSchema": {
+    "properties": {
+     "provider": {
+      "default": "",
+      "type": "string",
+      "description": "Optional filter: \"anthropic\" | \"openai\" | \"google\" | \"openrouter\". Empty = all."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_llm_models",
+   "title": "List registered LLM models"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List sub-agents"
+   },
+   "description": "List all sub-agents of a parent agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the parent agent."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_sub_agents",
+   "title": "List sub-agents"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Add sub-agent"
+   },
+   "description": "Add a sub-agent to a parent agent.",
+   "inputSchema": {
+    "properties": {
+     "parent_agent_id": {
+      "type": "string",
+      "description": "UUID of the parent (SEQUENTIAL/PARALLEL/LOOP)."
+     },
+     "child_agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to add as sub-agent."
+     },
+     "order_index": {
+      "default": -1,
+      "type": "integer",
+      "description": "Position (1-based). -1 appends to end."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "parent_agent_id",
+     "child_agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "add_sub_agent",
+   "title": "Add sub-agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Remove sub-agent"
+   },
+   "description": "Remove a sub-agent from a parent agent.",
+   "inputSchema": {
+    "properties": {
+     "parent_agent_id": {
+      "type": "string",
+      "description": "UUID of the parent agent."
+     },
+     "child_agent_id": {
+      "type": "string",
+      "description": "UUID of the sub-agent to remove."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "parent_agent_id",
+     "child_agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "remove_sub_agent",
+   "title": "Remove sub-agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Reorder sub-agents"
+   },
+   "description": "Reorder sub-agents of a parent agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the parent agent."
+     },
+     "child_agent_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "description": "Ordered list of ALL child agent UUIDs."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "child_agent_ids"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "reorder_sub_agents",
+   "title": "Reorder sub-agents"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List MCP platforms"
+   },
+   "description": "List MCP platform integrations (global + organization-specific).",
+   "inputSchema": {
+    "properties": {
+     "include_cross_org": {
+      "default": false,
+      "type": "boolean",
+      "description": "True이면 유저가 owner/admin인 다른 조직의 MCP도 포함. 결과에 organization_name이 표시되어 출처 구분 가능. 단, 다른 조직의 non-global MCP는 직접 link 불가 — 참고용으로 조회 후 create_mcp_platform으로 대상 조직에 새로 생성해야 함."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_mcp_platforms",
+   "title": "List MCP platforms"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get MCP platform"
+   },
+   "description": "Get detailed information about a specific MCP platform.\n\nCredential values come back masked ('••••••'): every value in decrypted_auth_config, secret-named keys\nin decrypted_config, and any argument that embeds a URL password. Key names stay, so you can see which\ncredentials are configured without copying secrets into the conversation. Sending a masked value back\nin update_mcp_platform keeps the stored value (arguments are matched by position).",
+   "inputSchema": {
+    "properties": {
+     "platform_id": {
+      "type": "string",
+      "description": "UUID of the MCP platform."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "reveal_secrets": {
+      "default": false,
+      "type": "boolean",
+      "description": "True returns the plaintext values. Use only when the user explicitly asks to see them."
+     }
+    },
+    "required": [
+     "platform_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_mcp_platform",
+   "title": "Get MCP platform"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create MCP platform"
+   },
+   "description": "Create a new MCP platform (remote or local).",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Lowercase-hyphen identifier."
+     },
+     "mcp_server_url": {
+      "default": "",
+      "type": "string",
+      "description": "Server URL (remote only)."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "Platform description."
+     },
+     "display_name": {
+      "default": "",
+      "type": "string",
+      "description": "UI name. Defaults to name."
+     },
+     "platform_type": {
+      "default": "",
+      "type": "string",
+      "description": "\"remote\" (default) | \"local\". ALWAYS pass \"local\" when giving command/args —\nthe backend does not infer it and a local server saved as remote never starts."
+     },
+     "transport_type": {
+      "default": "",
+      "type": "string",
+      "description": "\"streamable-http\" (default) | \"sse\" (legacy). Remote only."
+     },
+     "auth_type": {
+      "default": "",
+      "type": "string",
+      "description": "\"none\"|\"api_key\"|\"oauth\"|\"bearer\" (remote)."
+     },
+     "auth_config": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Auth credentials dict (remote)."
+     },
+     "command": {
+      "default": "",
+      "type": "string",
+      "description": "Executable (local, e.g. \"npx\")."
+     },
+     "args": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Command arguments (local)."
+     },
+     "env_vars": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Env vars, stored encrypted (local)."
+     },
+     "env_vars_schema": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "UI hints per env var (local)."
+     },
+     "cli_args_mapping": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Env var → CLI arg mapping (local)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "create_mcp_platform",
+   "title": "Create MCP platform"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Update MCP platform"
+   },
+   "description": "Update an MCP platform. Only provided fields are changed.\nSame parameters as create_mcp_platform, plus platform_id. Local config fields (command / args /\nenv_vars_schema / cli_args_mapping) are merged into the stored config, so sending only `args`\nkeeps the existing command and env schema.",
+   "inputSchema": {
+    "properties": {
+     "platform_id": {
+      "type": "string",
+      "description": "UUID of the MCP platform to update."
+     },
+     "name": {
+      "default": "",
+      "type": "string"
+     },
+     "mcp_server_url": {
+      "default": "",
+      "type": "string"
+     },
+     "description": {
+      "default": "",
+      "type": "string"
+     },
+     "display_name": {
+      "default": "",
+      "type": "string"
+     },
+     "platform_type": {
+      "default": "",
+      "type": "string"
+     },
+     "transport_type": {
+      "default": "",
+      "type": "string"
+     },
+     "auth_type": {
+      "default": "",
+      "type": "string"
+     },
+     "auth_config": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "command": {
+      "default": "",
+      "type": "string"
+     },
+     "args": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "env_vars": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "env_vars_schema": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "cli_args_mapping": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "clear_fields": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Fields to empty — empty values are otherwise ignored. Allowed: description;\nargs, env_vars_schema, cli_args_mapping (removed from the stored local config, the rest is kept);\nenv_vars, auth_config (both are the one stored credentials object — clearing either removes\nall stored credentials). The result lists them under \"cleared\"."
+     }
+    },
+    "required": [
+     "platform_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_mcp_platform",
+   "title": "Update MCP platform"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete MCP platform"
+   },
+   "description": "Delete an MCP platform. Also unlinks from all agents.",
+   "inputSchema": {
+    "properties": {
+     "platform_id": {
+      "type": "string",
+      "description": "UUID of the MCP platform to delete."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "platform_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_mcp_platform",
+   "title": "Delete MCP platform"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Link MCP platform to agent"
+   },
+   "description": "Link an MCP platform to an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "platform_id": {
+      "type": "string",
+      "description": "UUID of the MCP platform to link."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "platform_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "link_agent_mcp",
+   "title": "Link MCP platform to agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Unlink MCP platform from agent"
+   },
+   "description": "Unlink an MCP platform from an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "platform_id": {
+      "type": "string",
+      "description": "UUID of the MCP platform to unlink."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "platform_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "unlink_agent_mcp",
+   "title": "Unlink MCP platform from agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Enable/disable MCP platform"
+   },
+   "description": "Enable or disable an MCP platform (for a global platform: its activation in this organization).\n\nPass is_active explicitly. Without it the current state is flipped, so a retried or repeated call\nundoes the first one; the result then also reports \"previous_is_active\" and a \"note\".",
+   "inputSchema": {
+    "properties": {
+     "platform_id": {
+      "type": "string",
+      "description": "UUID of the MCP platform."
+     },
+     "is_active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Desired state (recommended). Omit to flip the current state."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "platform_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "toggle_mcp_active",
+   "title": "Enable/disable MCP platform"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List RAG datastores"
+   },
+   "description": "List all RAG datastores in the current organization.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_datastores",
+   "title": "List RAG datastores"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create RAG datastore"
+   },
+   "description": "Create a new RAG datastore (knowledge base).\n\nCreates the record and returns its datastore_id. Its file storage and search index are created on\nthe first upload_rag_document call — an empty datastore has no index yet, which is normal.\nWire it to an agent with rag_tools=[\"rag_<datastore_id>\"] on a RAG_AGENT (exactly one datastore\nper RAG_AGENT; LLM_AGENT cannot carry rag_tools — use agent_tool:<rag-agent-name> instead).",
+   "inputSchema": {
+    "properties": {
+     "display_name": {
+      "type": "string",
+      "description": "Datastore display name."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "Datastore description."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "display_name"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "create_datastore",
+   "title": "Create RAG datastore"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete RAG datastore"
+   },
+   "description": "Delete a RAG datastore completely (stored files, search index and record).\n\nFails with 409 if any agent still references the datastore via rag_tools — unlink or delete\nthose RAG agents first, or pass force=True. A datastore that never received an upload has no\nindex yet; deleting it is still fine.",
+   "inputSchema": {
+    "properties": {
+     "datastore_id": {
+      "type": "string",
+      "description": "ID of the datastore to delete (e.g. \"datastore-abc12345\")."
+     },
+     "force": {
+      "default": false,
+      "type": "boolean",
+      "description": "Delete even if agents still reference the datastore (default False)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "datastore_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_datastore",
+   "title": "Delete RAG datastore"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List datastore files"
+   },
+   "description": "List all files in a RAG datastore.",
+   "inputSchema": {
+    "properties": {
+     "datastore_id": {
+      "type": "string",
+      "description": "ID of the datastore."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "datastore_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_datastore_files",
+   "title": "List datastore files"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete datastore file"
+   },
+   "description": "Delete a file from a RAG datastore.",
+   "inputSchema": {
+    "properties": {
+     "datastore_id": {
+      "type": "string",
+      "description": "ID of the datastore."
+     },
+     "filename": {
+      "type": "string",
+      "description": "Name of the file to delete."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "datastore_id",
+     "filename"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_datastore_file",
+   "title": "Delete datastore file"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List sessions"
+   },
+   "description": "List chat sessions in the current organization.\n\nOwners and admins see every session in the organization; members see only their\nown. An empty result for a member usually means they have no sessions there, not\nthat the organization is empty.",
+   "inputSchema": {
+    "properties": {
+     "search": {
+      "default": "",
+      "type": "string",
+      "description": "Filter by ID or title."
+     },
+     "page": {
+      "default": 1,
+      "type": "integer",
+      "description": "Page number (starts at 1)."
+     },
+     "page_size": {
+      "default": 20,
+      "type": "integer",
+      "description": "Sessions per page (max 100)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_sessions",
+   "title": "List sessions"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get session messages"
+   },
+   "description": "Get messages from a chat session.\n\nMembers can only read their own sessions — someone else's session returns 404.",
+   "inputSchema": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "description": "UUID of the session."
+     },
+     "page": {
+      "default": 1,
+      "type": "integer",
+      "description": "Page number (starts at 1)."
+     },
+     "page_size": {
+      "default": 50,
+      "type": "integer",
+      "description": "Messages per page (max 100)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_session_messages",
+   "title": "Get session messages"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete session"
+   },
+   "description": "Delete a chat session and all its messages.\n\nRequires owner or admin role in the organization.",
+   "inputSchema": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "description": "UUID of the session to delete."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_session",
+   "title": "Delete session"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get session status"
+   },
+   "description": "Get the status of a session, including whether an agent is processing it right now.\n\nReturns the session record (is_active, message_count, created_at, last_update_time) plus the\nprocessing fields is_processing, current_agent, started_at, elapsed_seconds, timed_out. The\nprocessing fields exist only for sessions you own; for others (visible to org admins) the result\ncarries \"processing_status\": \"unavailable: …\" instead.\n\nMembers can only read their own sessions — someone else's session returns 404.",
+   "inputSchema": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "description": "UUID of the session."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_session_status",
+   "title": "Get session status"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Send message to agent"
+   },
+   "description": "Send a message to an agent and get a response (waits up to 10 minutes).\n\nLong runs (big team builds, multi-step research) keep executing on the server even if this\ncall times out — do NOT resend the same message. Continue with a follow-up message using the\nsame session_id (e.g. \"continue\" / \"status?\") to pick up the result.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to message."
+     },
+     "message": {
+      "type": "string",
+      "description": "The user message to send."
+     },
+     "session_id": {
+      "default": "",
+      "type": "string",
+      "description": "Existing session UUID for multi-turn. Empty = new session."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "message"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "send_message",
+   "title": "Send message to agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Chat with organization orchestrator"
+   },
+   "description": "OpenAI-compatible chat completion request (waits up to 10 minutes).\n\nSame long-run rule as send_message: if it times out the run continues server-side — do not\nresend; follow up with the same session_id.",
+   "inputSchema": {
+    "properties": {
+     "messages": {
+      "items": {},
+      "type": "array",
+      "description": "[{\"role\": \"user\"|\"assistant\"|\"system\", \"content\": \"...\"}]."
+     },
+     "model": {
+      "default": "",
+      "type": "string",
+      "description": "Echoed back only (the orchestrator's configured model is always used)."
+     },
+     "agent_id": {
+      "default": "",
+      "type": "string",
+      "description": "IGNORED — this endpoint always talks to the organization orchestrator. To message a\nspecific agent use send_message(agent_id, ...). Kept for backward compatibility."
+     },
+     "session_id": {
+      "default": "",
+      "type": "string",
+      "description": "Session UUID for multi-turn."
+     },
+     "temperature": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Accepted for OpenAI compatibility but NOT applied — the backend handler never\nreads it; the agent's configured temperature is used. Change it with update_agent instead."
+     },
+     "max_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Same — accepted but not applied; the agent's configured max_output_tokens is used."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "messages"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "chat_completion",
+   "title": "Chat with organization orchestrator"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Start agent run (returns at once)"
+   },
+   "description": "Start an agent run and return its session_id without waiting for the answer. Poll with get_run.\n\nUse this instead of send_message / chat_completion for anything that may take minutes (team builds,\nresearch, multi-agent workflows). The run executes and bills exactly like send_message. Never call\nstart_run again for the same work — poll get_run(session_id); a second call is a second run.\n\nReturns {\"session_id\", \"status\", \"poll_with\": \"get_run\"} where status is:\n  \"running\"   — the platform shows the run in progress;\n  \"completed\" — it finished within the first seconds; \"result\" holds the answer;\n  \"failed\"    — it finished with an error; \"result\" holds the error text;\n  \"starting\"  — the request is in flight but the run was not visible yet; poll get_run.\nA request the platform rejects outright (credits, permissions, unknown agent) raises an error and\nnothing runs.",
+   "inputSchema": {
+    "properties": {
+     "message": {
+      "type": "string",
+      "description": "The user message."
+     },
+     "agent_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the agent to run. Empty = the organization orchestrator."
+     },
+     "session_id": {
+      "default": "",
+      "type": "string",
+      "description": "Continue this session (one of your own). Empty = a new session id is generated."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "on_behalf_of": {
+      "default": "",
+      "type": "string",
+      "description": "Run as a provisioned account of your organization (requires the users:delegate\nscope). Pass the same value to get_run."
+     }
+    },
+    "required": [
+     "message"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "start_run",
+   "title": "Start agent run (returns at once)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get agent run status and answer"
+   },
+   "description": "Check a run started with start_run (or any session of yours) and read its answer when done.\n\nReturns the platform's processing fields plus \"status\":\n  \"running\"   — still working (current_agent, elapsed_seconds tell you where it is); poll again;\n  \"completed\" — the newest turn is an assistant reply; \"result\" holds it (include_result=True);\n  \"timed_out\" — the platform stopped it after 120 minutes;\n  \"pending\"   — the session exists but nothing has been said yet; poll again;\n  \"no_reply\"  — not running, and the newest message is the user's: the run ended without an answer;\n  \"not_found\" — no such session for this key (wrong id, or another user's session).\nRight after start_run on a session that already had turns, the previous answer can show as\n\"completed\" until the new run begins — trust \"completed\" once you have seen \"running\".",
+   "inputSchema": {
+    "properties": {
+     "session_id": {
+      "type": "string",
+      "description": "session_id returned by start_run."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "include_result": {
+      "default": true,
+      "type": "boolean",
+      "description": "False = report the status without the answer text (the messages are still read\nto tell completed from pending)."
+     },
+     "on_behalf_of": {
+      "default": "",
+      "type": "string",
+      "description": "The same value given to start_run, if any."
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_run",
+   "title": "Get agent run status and answer"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List schedules"
+   },
+   "description": "List all scheduled tasks in the current organization.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_schedules",
+   "title": "List schedules"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create schedule"
+   },
+   "description": "Create a new scheduled task.",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Display name."
+     },
+     "prompt": {
+      "type": "string",
+      "description": "Message sent to orchestrator when triggered."
+     },
+     "schedule_type": {
+      "default": "daily",
+      "type": "string",
+      "description": "\"daily\"|\"weekly\"|\"monthly\"|\"every_minutes\"|\"every_hours\"|\"once\" (cron is NOT supported)."
+     },
+     "schedule_config": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "REQUIRED — the backend rejects the request with 400 when it is missing, so the\n\"daily\" default above is not usable on its own. Times are KST. Shape per type:\ndaily: {\"time\": \"09:00\"}\nweekly: {\"time\": \"09:00\", \"weekdays\": [0,1,2,3,4]}  (0=Monday)\nmonthly: {\"day\": 1, \"time\": \"09:00\"}\nevery_minutes: {\"interval\": 30}\nevery_hours: {\"interval\": 6}\nonce: {\"run_at\": \"2025-12-01T09:00:00\"}"
+     },
+     "enabled": {
+      "default": true,
+      "type": "boolean",
+      "description": "Active state (default True)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "name",
+     "prompt"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "create_schedule",
+   "title": "Create schedule"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Update schedule"
+   },
+   "description": "Update a schedule. Only provided fields are changed.",
+   "inputSchema": {
+    "properties": {
+     "schedule_id": {
+      "type": "string",
+      "description": "UUID of the schedule to update."
+     },
+     "name": {
+      "default": "",
+      "type": "string",
+      "description": "New display name."
+     },
+     "prompt": {
+      "default": "",
+      "type": "string",
+      "description": "New prompt message."
+     },
+     "schedule_type": {
+      "default": "",
+      "type": "string",
+      "description": "\"daily\"|\"weekly\"|\"monthly\"|\"every_minutes\"|\"every_hours\"|\"once\"."
+     },
+     "schedule_config": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "New config dict (see create_schedule for examples)."
+     },
+     "enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "True/False to enable/disable."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "clear_fields": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Settings to reset. Allowed: session_config (runs go back to a new session each time,\nthe default). The result lists them under \"cleared\"."
+     }
+    },
+    "required": [
+     "schedule_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_schedule",
+   "title": "Update schedule"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete schedule"
+   },
+   "description": "Delete a scheduled task.",
+   "inputSchema": {
+    "properties": {
+     "schedule_id": {
+      "type": "string",
+      "description": "UUID of the schedule to delete."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "schedule_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_schedule",
+   "title": "Delete schedule"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Enable/disable schedule"
+   },
+   "description": "Enable or disable a scheduled task.",
+   "inputSchema": {
+    "properties": {
+     "schedule_id": {
+      "type": "string",
+      "description": "UUID of the schedule."
+     },
+     "enabled": {
+      "type": "boolean",
+      "description": "True to enable, False to disable."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "schedule_id",
+     "enabled"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "toggle_schedule",
+   "title": "Enable/disable schedule"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List skills"
+   },
+   "description": "List skills in the specified organization.",
+   "inputSchema": {
+    "properties": {
+     "include_system": {
+      "default": false,
+      "type": "boolean",
+      "description": "True이면 시스템 스킬(scope=system)도 포함. 에이전트에 할당 가능한 스킬을 확인할 때 True로 설정."
+     },
+     "include_cross_org": {
+      "default": false,
+      "type": "boolean",
+      "description": "True이면 유저가 owner/admin인 다른 조직의 스킬도 포함. 결과에 organization_id, organization_name이 표시되어 출처 구분 가능. 단, 다른 조직의 스킬은 직접 assign 불가 — 참고용으로 조회 후 create_skill로 대상 조직에 복제 생성해야 함."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_skills",
+   "title": "List skills"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get skill"
+   },
+   "description": "Get one skill with its full instruction, scripts and reference files. Read this BEFORE patch_skill.",
+   "inputSchema": {
+    "properties": {
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill (from list_skills)."
+     },
+     "include_files": {
+      "default": true,
+      "type": "boolean",
+      "description": "True = reference_files as {path: content}; False = {path: length} only (lighter)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "skill_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_skill",
+   "title": "Get skill"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create skill"
+   },
+   "description": "Create a new skill.",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Lowercase-hyphen identifier."
+     },
+     "display_name": {
+      "default": "",
+      "type": "string",
+      "description": "UI name. Defaults to name."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "Short description for LLM skill selection."
+     },
+     "instruction": {
+      "default": "",
+      "type": "string",
+      "description": "Prompt template injected when used."
+     },
+     "runtime": {
+      "default": "",
+      "type": "string",
+      "description": "\"python\" | \"javascript\" | \"\"."
+     },
+     "e2b_template": {
+      "default": "",
+      "type": "string",
+      "description": "E2B sandbox template ID."
+     },
+     "container_type": {
+      "default": "",
+      "type": "string",
+      "description": "\"none\" | \"code_execution\"."
+     },
+     "packages": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Sandbox packages."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "create_skill",
+   "title": "Create skill"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Update skill"
+   },
+   "description": "Update a skill. Only provided fields are changed.\nSame parameters as create_skill, plus skill_id.",
+   "inputSchema": {
+    "properties": {
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill to update."
+     },
+     "name": {
+      "default": "",
+      "type": "string"
+     },
+     "display_name": {
+      "default": "",
+      "type": "string"
+     },
+     "description": {
+      "default": "",
+      "type": "string"
+     },
+     "instruction": {
+      "default": "",
+      "type": "string"
+     },
+     "runtime": {
+      "default": "",
+      "type": "string"
+     },
+     "e2b_template": {
+      "default": "",
+      "type": "string"
+     },
+     "container_type": {
+      "default": "",
+      "type": "string"
+     },
+     "packages": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "clear_fields": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Fields to empty — empty values are otherwise ignored. Allowed: runtime, e2b_template,\npackages. The result lists them under \"cleared\"."
+     }
+    },
+    "required": [
+     "skill_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_skill",
+   "title": "Update skill"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Patch skill text"
+   },
+   "description": "Edit part of a skill WITHOUT resending the whole text: replaces old_string with new_string.\n\nPreferred over update_skill(instruction=...) for any change smaller than a full rewrite.\nold_string must be copied VERBATIM from get_skill (byte-exact, incl. line breaks) and must occur\nexactly once — on 0 or 2+ matches the call fails with a hint; include surrounding lines or set\nreplace_all=True. new_string=\"\" deletes the passage.",
+   "inputSchema": {
+    "properties": {
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill."
+     },
+     "old_string": {
+      "type": "string",
+      "description": "Exact current text to replace."
+     },
+     "new_string": {
+      "default": "",
+      "type": "string",
+      "description": "Replacement text. Empty string deletes old_string."
+     },
+     "replace_all": {
+      "default": false,
+      "type": "boolean",
+      "description": "Replace every occurrence instead of requiring a unique match."
+     },
+     "file_path": {
+      "default": "",
+      "type": "string",
+      "description": "Empty = patch the instruction. Set to a reference file path (e.g. \"references/api.md\") to patch that file."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "skill_id",
+     "old_string"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "patch_skill",
+   "title": "Patch skill text"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Write skill reference file (overwrites)"
+   },
+   "description": "Create or overwrite a reference file of a skill (e.g. \"references/api.md\", \"rules/tone.md\").\n\nReference files are loaded lazily by agents via read_skill_file, so put long material here\ninstead of bloating the instruction. Relative POSIX path only (no \"..\", no leading \"/\").",
+   "inputSchema": {
+    "properties": {
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill."
+     },
+     "file_path": {
+      "type": "string",
+      "description": "Relative path inside the skill, e.g. \"references/api.md\"."
+     },
+     "content": {
+      "type": "string",
+      "description": "Full file content (markdown/text)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "skill_id",
+     "file_path",
+     "content"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "write_skill_file",
+   "title": "Write skill reference file (overwrites)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete skill reference file"
+   },
+   "description": "Delete one reference file of a skill.",
+   "inputSchema": {
+    "properties": {
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill."
+     },
+     "file_path": {
+      "type": "string",
+      "description": "Relative path of the file, e.g. \"references/api.md\"."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "skill_id",
+     "file_path"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_skill_file",
+   "title": "Delete skill reference file"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete skill"
+   },
+   "description": "Delete a skill. Agents using it lose access.",
+   "inputSchema": {
+    "properties": {
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill to delete."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "skill_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "delete_skill",
+   "title": "Delete skill"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List skill bundles"
+   },
+   "description": "List skill bundles (named groups of skills assignable to an agent as one unit), or one bundle with its skills.",
+   "inputSchema": {
+    "properties": {
+     "bundle_id": {
+      "default": "",
+      "type": "string",
+      "description": "Empty = list all bundles (skill_count only). Set to get one bundle including its skills."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_skill_bundles",
+   "title": "List skill bundles"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Manage skill bundle"
+   },
+   "description": "Create/update/delete a skill bundle, add/remove skills, or assign/unassign a bundle to an agent.",
+   "inputSchema": {
+    "properties": {
+     "action": {
+      "type": "string",
+      "description": "One of create | update | delete | add_skill | remove_skill | assign | unassign | list_agent."
+     },
+     "bundle_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the bundle (all actions except create / list_agent)."
+     },
+     "name": {
+      "default": "",
+      "type": "string",
+      "description": "Bundle identifier for create (lowercase letters, digits, hyphens)."
+     },
+     "display_name": {
+      "default": "",
+      "type": "string",
+      "description": "Human-readable name (create / update)."
+     },
+     "description": {
+      "default": "",
+      "type": "string",
+      "description": "Short description (create / update)."
+     },
+     "is_active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Enable/disable the bundle (update)."
+     },
+     "skill_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the skill (add_skill / remove_skill)."
+     },
+     "agent_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the agent (assign / unassign / list_agent)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "action"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "manage_skill_bundle",
+   "title": "Manage skill bundle"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Assign skill to agent"
+   },
+   "description": "Assign a skill to an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill to assign."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "skill_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "assign_skill",
+   "title": "Assign skill to agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Unassign skill from agent"
+   },
+   "description": "Remove a skill assignment from an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "skill_id": {
+      "type": "string",
+      "description": "UUID of the skill to remove."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "skill_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "unassign_skill",
+   "title": "Unassign skill from agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Import skill from GitHub"
+   },
+   "description": "Import skill(s) from a GitHub URL or owner/repo shorthand.",
+   "inputSchema": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "description": "GitHub URL or owner/repo."
+     },
+     "overwrite": {
+      "default": false,
+      "type": "boolean",
+      "description": "Overwrite existing skills."
+     },
+     "bundle_name": {
+      "default": "",
+      "type": "string",
+      "description": "Bundle name. Auto-generated if empty."
+     },
+     "skill_dirs": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Subdirectories to import. None=all."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "url"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "import_skill_from_github",
+   "title": "Import skill from GitHub"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Import skill from npm/NPX"
+   },
+   "description": "Import skill via NPX command, npm package, or GitHub shorthand.",
+   "inputSchema": {
+    "properties": {
+     "command": {
+      "type": "string",
+      "description": "NPX command, npm package, or owner/repo."
+     },
+     "overwrite": {
+      "default": false,
+      "type": "boolean",
+      "description": "Overwrite existing skills."
+     },
+     "bundle_name": {
+      "default": "",
+      "type": "string",
+      "description": "Bundle name for grouping."
+     },
+     "skill_dirs": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Subdirectories to import."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "command"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "import_skill_from_npx",
+   "title": "Import skill from npm/NPX"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Import skill from upload"
+   },
+   "description": "Import a skill from a ZIP or SKILL.md upload (base64-encoded).",
+   "inputSchema": {
+    "properties": {
+     "file_content_base64": {
+      "type": "string",
+      "description": "Base64-encoded content."
+     },
+     "filename": {
+      "type": "string",
+      "description": "Original filename (e.g. \"my-skill.zip\")."
+     },
+     "overwrite": {
+      "default": false,
+      "type": "boolean",
+      "description": "Overwrite existing skills."
+     },
+     "bundle_name": {
+      "default": "",
+      "type": "string",
+      "description": "Bundle name for grouping."
+     },
+     "skill_dirs": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Subdirectories to import. None = all."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "file_content_base64",
+     "filename"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "import_skill_from_upload",
+   "title": "Import skill from upload"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List E2B sandbox templates"
+   },
+   "description": "List available E2B sandbox templates.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_e2b_templates",
+   "title": "List E2B sandbox templates"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List Composio integrations"
+   },
+   "description": "List available Composio integrations (OAuth apps).",
+   "inputSchema": {
+    "properties": {
+     "category": {
+      "default": "",
+      "type": "string",
+      "description": "Category filter. Empty=all."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_composio_integrations",
+   "title": "List Composio integrations"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get agent Composio status"
+   },
+   "description": "Check Composio integration status for an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent to check."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_agent_composio_status",
+   "title": "Get agent Composio status"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List Composio connections"
+   },
+   "description": "List active Composio OAuth connections for the current organization.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_composio_connections",
+   "title": "List Composio connections"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Link Composio integration to agent"
+   },
+   "description": "Link a Composio integration to an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "auth_config_id": {
+      "type": "string",
+      "description": "Composio auth config ID."
+     },
+     "is_required": {
+      "default": false,
+      "type": "boolean",
+      "description": "Agent warns when not connected."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "auth_config_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "link_agent_composio",
+   "title": "Link Composio integration to agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Unlink Composio integration from agent"
+   },
+   "description": "Unlink a Composio integration from an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "auth_config_id": {
+      "type": "string",
+      "description": "Composio auth config ID to unlink."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "auth_config_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "unlink_agent_composio",
+   "title": "Unlink Composio integration from agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Apply batch team changes"
+   },
+   "description": "Apply batch team structure changes. Not transactional — each action is independent.\n\nThe batch is checked first (known action, required keys). If any change would be rejected, nothing\nis sent: the result has \"applied\": false and \"rejected\": [{index, action, reason}] (also mirrored in\n\"errors\") — fix those items and send the batch again. Once sent, a change that fails on the platform\nlands in \"errors\" while the others still apply; retry only those.",
+   "inputSchema": {
+    "properties": {
+     "changes": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "description": "Ordered list of change dicts. Each must have \"action\" key."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     },
+     "dry_run": {
+      "default": false,
+      "type": "boolean",
+      "description": "True = only check the batch and report {\"dry_run\", \"valid\", \"rejected\", \"count\"};\nnothing is sent."
+     }
+    },
+    "required": [
+     "changes"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "apply_team_changes",
+   "title": "Apply batch team changes"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List generated content"
+   },
+   "description": "List AI-generated content.",
+   "inputSchema": {
+    "properties": {
+     "content_type": {
+      "default": "",
+      "type": "string",
+      "description": "\"image\"|\"video\"|\"audio\"|\"glb\"|\"other\". Empty=all."
+     },
+     "status": {
+      "default": "",
+      "type": "string",
+      "description": "\"pending\"|\"processing\"|\"completed\"|\"failed\". Empty=all."
+     },
+     "page": {
+      "default": 1,
+      "type": "integer",
+      "description": "Page number (default 1)."
+     },
+     "page_size": {
+      "default": 20,
+      "type": "integer",
+      "description": "Items per page (default 20, max 100)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_content",
+   "title": "List generated content"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get generated content"
+   },
+   "description": "Get detailed information about a specific generated content.",
+   "inputSchema": {
+    "properties": {
+     "content_id": {
+      "type": "string",
+      "description": "ID of the content to retrieve."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "content_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_content",
+   "title": "Get generated content"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Retry content generation"
+   },
+   "description": "Retry a failed content generation.",
+   "inputSchema": {
+    "properties": {
+     "content_id": {
+      "type": "string",
+      "description": "ID of the failed content to retry."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "content_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "retry_content",
+   "title": "Retry content generation"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Upload RAG documents"
+   },
+   "description": "Upload documents to a RAG DataStore for indexing.",
+   "inputSchema": {
+    "properties": {
+     "datastore_id": {
+      "type": "string",
+      "description": "ID of the target DataStore."
+     },
+     "files": {
+      "items": {
+       "additionalProperties": {
+        "type": "string"
+       },
+       "type": "object"
+      },
+      "type": "array",
+      "description": "List of {\"filename\": str, \"content\": base64-str, \"content_type\"?: str}."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "datastore_id",
+     "files"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "upload_rag_document",
+   "title": "Upload RAG documents"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get RAG upload status"
+   },
+   "description": "Get the indexing status of a RAG document upload.",
+   "inputSchema": {
+    "properties": {
+     "upload_id": {
+      "type": "string",
+      "description": "Upload ID from upload_rag_document."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "upload_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_upload_status",
+   "title": "Get RAG upload status"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List RAG uploads"
+   },
+   "description": "List RAG document uploads.",
+   "inputSchema": {
+    "properties": {
+     "datastore_id": {
+      "default": "",
+      "type": "string",
+      "description": "Filter by DataStore ID. Empty=all."
+     },
+     "status": {
+      "default": "",
+      "type": "string",
+      "description": "\"pending\"|\"processing\"|\"indexing\"|\"completed\"|\"failed\". Empty=all."
+     },
+     "limit": {
+      "default": 50,
+      "type": "integer",
+      "description": "Max results (max 100)."
+     },
+     "offset": {
+      "default": 0,
+      "type": "integer",
+      "description": "Pagination offset."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_rag_uploads",
+   "title": "List RAG uploads"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List soul/identity files"
+   },
+   "description": "List all Soul/Identity files in the current organization.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_soul_directory",
+   "title": "List soul/identity files"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get soul/identity file"
+   },
+   "description": "Get the content of a Soul/Identity file.",
+   "inputSchema": {
+    "properties": {
+     "file_key": {
+      "type": "string",
+      "description": "\"soul.md\" (thinking style) | \"identity.md\" (speaking style)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "file_key"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_soul_content",
+   "title": "Get soul/identity file"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Replace soul/identity file"
+   },
+   "description": "Update a Soul/Identity file. Replaces entire content.",
+   "inputSchema": {
+    "properties": {
+     "file_key": {
+      "type": "string",
+      "description": "\"soul.md\" | \"identity.md\"."
+     },
+     "content": {
+      "type": "string",
+      "description": "New markdown content."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "file_key",
+     "content"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_soul_content",
+   "title": "Replace soul/identity file"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Patch soul/identity file"
+   },
+   "description": "Edit part of soul.md / identity.md WITHOUT resending the whole file: replaces old_string with new_string.\n\nPreferred over update_soul_content for small changes. Read with get_soul_content first and copy\nold_string VERBATIM. Note the store converts `{`→`(` and `}`→`)` on save, so what you read back is\nthe converted text; your old/new strings are converted the same way before matching.",
+   "inputSchema": {
+    "properties": {
+     "file_key": {
+      "type": "string",
+      "description": "\"soul.md\" | \"identity.md\"."
+     },
+     "old_string": {
+      "type": "string",
+      "description": "Exact current text to replace (must occur exactly once unless replace_all)."
+     },
+     "new_string": {
+      "default": "",
+      "type": "string",
+      "description": "Replacement text. Empty string deletes old_string."
+     },
+     "replace_all": {
+      "default": false,
+      "type": "boolean",
+      "description": "Replace every occurrence instead of requiring a unique match."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "file_key",
+     "old_string"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "patch_soul_content",
+   "title": "Patch soul/identity file"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List user memory files"
+   },
+   "description": "List all memory files for a user.",
+   "inputSchema": {
+    "properties": {
+     "user_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the user. Empty = API key owner."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_memory_directory",
+   "title": "List user memory files"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get user memory file"
+   },
+   "description": "Get content of a specific memory file.",
+   "inputSchema": {
+    "properties": {
+     "memory_type": {
+      "type": "string",
+      "description": "\"user\"|\"d0\"|\"d30\"|\"d90\"|\"d365\"."
+     },
+     "file_key": {
+      "type": "string",
+      "description": "File identifier (e.g. \"user.md\")."
+     },
+     "user_id": {
+      "default": "",
+      "type": "string",
+      "description": "User UUID. Empty = API key owner."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "memory_type",
+     "file_key"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_memory_content",
+   "title": "Get user memory file"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Replace user profile memory"
+   },
+   "description": "Update a user memory file. Only \"user\" type writable.",
+   "inputSchema": {
+    "properties": {
+     "memory_type": {
+      "type": "string",
+      "description": "Must be \"user\"."
+     },
+     "file_key": {
+      "type": "string",
+      "description": "File identifier (e.g. \"user.md\")."
+     },
+     "content": {
+      "type": "string",
+      "description": "Full replacement content."
+     },
+     "user_id": {
+      "default": "",
+      "type": "string",
+      "description": "User UUID. Empty = API key owner."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "memory_type",
+     "file_key",
+     "content"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "update_memory_content",
+   "title": "Replace user profile memory"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Patch user profile memory"
+   },
+   "description": "Edit part of a user's profile memory (user.md) WITHOUT resending the whole file.\n\nPreferred over update_memory_content for fixing one line. Read with get_memory_content(\"user\", \"user.md\")\nfirst and copy old_string VERBATIM. Same access rules as update_memory_content (own profile, or a\nprovisioned account of this organization when user_id is given). `{`/`}` are converted to `(`/`)`\non save, so match against the converted text you read back.",
+   "inputSchema": {
+    "properties": {
+     "old_string": {
+      "type": "string",
+      "description": "Exact current text to replace (must occur exactly once unless replace_all)."
+     },
+     "new_string": {
+      "default": "",
+      "type": "string",
+      "description": "Replacement text. Empty string deletes old_string."
+     },
+     "replace_all": {
+      "default": false,
+      "type": "boolean",
+      "description": "Replace every occurrence instead of requiring a unique match."
+     },
+     "user_id": {
+      "default": "",
+      "type": "string",
+      "description": "User UUID. Empty = API key owner."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "old_string"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "patch_memory_content",
+   "title": "Patch user profile memory"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List devices"
+   },
+   "description": "List devices owned by the current user.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_devices",
+   "title": "List devices"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Link device to agent"
+   },
+   "description": "Link a device to an agent for local MCP tool access.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "UUID of the device (from list_devices)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "device_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "link_agent_device",
+   "title": "Link device to agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Unlink device from agent"
+   },
+   "description": "Unlink a device from an agent.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "device_id": {
+      "type": "string",
+      "description": "UUID of the device to unlink."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+     }
+    },
+    "required": [
+     "agent_id",
+     "device_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "unlink_agent_device",
+   "title": "Unlink device from agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Read platform guide"
+   },
+   "description": "Read the Junis platform guide: tool reference, the 22 agent configuration rules, model choice,\nMCP/RAG/skills/soul setup, data flow between agents, workflows and troubleshooting.\n\nSame text as resource junis://guide. Read it before building or changing agents.",
+   "inputSchema": {
+    "properties": {
+     "section": {
+      "default": "",
+      "type": "string",
+      "description": "Empty = the whole guide. Otherwise a heading to look up, case-insensitive — e.g. \"Rule 3\",\n\"Rule 15\", \"Troubleshooting\", \"Recommended Workflows\", \"MCP Platform Setup\". When nothing\nmatches, the result lists every section title."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "get_guide",
+   "title": "Read platform guide"
+  }
+ ]
+}
