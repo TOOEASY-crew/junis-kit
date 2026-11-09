@@ -36,7 +36,8 @@ release tags users pin with `JUNIS_KIT_REF`.
   is asked unless `dry_run=true`), and through `junis_api` `POST /actions/run`,
   `POST /actions/import/openapi` and `POST /actions/import`.
 
-- `junis_wiki` (actions get, put, append) gives agents the same safe wiki operations through the MCP bridge; put on an existing page needs `confirmed=true`.
+- `junis_wiki` (actions get, put, append) gives agents the same safe wiki operations through the MCP bridge; put on an existing page needs `confirmed=true`. It takes `profile` for a single call.
+- `profile list` and `profile use <name>` (`junis_use_profile` in the bridge) pick which stored key every following call uses, including the MCP server an agent starts; `JUNIS_PROFILE` in the environment still wins.
 
 ### Changed
 

@@ -279,6 +279,41 @@ function deleteProfileUnlocked(name) {
   return existed;
 }
 
+// The profile the kit uses when JUNIS_PROFILE is not set: stored in the same file as the keys,
+// so a stdio MCP server started by an agent (which cannot be given an environment variable)
+// follows it too. Only a profile with a stored key can be chosen.
+export function useProfile(name) {
+  return withStoreLock(() => {
+    const store = loadStore();
+    const wanted = String(name || '').trim();
+    if (!store.profiles[wanted]?.api_key) {
+      throw new KitError(`No key is stored under the profile "${wanted}"`, {
+        code: 'unknown_profile',
+        hint: `Stored profiles: ${Object.keys(store.profiles).join(', ') || 'none'}. Store one with \`login --profile ${wanted || '<name>'}\`.`,
+      });
+    }
+    const previous = store.current;
+    store.current = wanted;
+    saveStore(store);
+    return { profile: wanted, previous };
+  });
+}
+
+export function listProfiles() {
+  const store = loadStore();
+  const inUse = process.env.JUNIS_PROFILE || store.current;
+  return Object.keys(store.profiles).map((name) => {
+    const saved = store.profiles[name];
+    return {
+      name,
+      in_use: name === inUse,
+      has_key: Boolean(saved.api_key),
+      api_base: saved.api_base || ENVIRONMENTS.prod.api_base,
+      organization: saved.organization_name || saved.organization_slug || saved.organization_id || null,
+    };
+  });
+}
+
 // Only ever show enough of a key to recognise it.
 export function maskKey(key) {
   if (!key) return '';

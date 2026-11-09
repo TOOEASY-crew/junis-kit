@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import readline from 'node:readline';
 import { BOOLEAN_FLAGS, parseArgs, parseQuery, resolvePayload, expandFileReferences, readStdin, shellWord } from './lib/args.mjs';
-import { KIT_VERSION, credentialsPath, deleteProfile, loadStore, loginUrl, resolveProfile } from './lib/config.mjs';
+import { KIT_VERSION, credentialsPath, deleteProfile, listProfiles, loadStore, loginUrl, resolveProfile, useProfile } from './lib/config.mjs';
 import { destructiveApiReason, destructiveReason } from './lib/destructive.mjs';
 import { emptyTextFieldError } from './lib/guards.mjs';
 import { KitError } from './lib/http.mjs';
@@ -26,6 +26,7 @@ Setup
                                      --scopes: ask for fewer permissions than the default (all)
   logout
   org list | org use <name|slug|id>
+  profile list | profile use <name>  Pick the stored key the kit and its MCP server use (JUNIS_PROFILE still wins)
   install [--agents a,b|all] [--dry-run] [--full|--lazy] [--force] [--home dir] [--no-cli]
   uninstall [--agents a,b] [--dry-run] [--purge] [--home dir] [--no-cli]
   doctor [--home dir]                Check the local setup end to end
@@ -190,6 +191,26 @@ async function commandOrg({ positionals }) {
   throw new KitError(`Unknown org action "${action}"`, { code: 'usage' });
 }
 
+function commandProfile({ positionals }) {
+  const [action = 'list', ...rest] = positionals;
+  if (action === 'list') {
+    const profiles = listProfiles();
+    return { in_use: profiles.find((p) => p.in_use)?.name || null, profiles, ...(process.env.JUNIS_PROFILE ? { note: 'JUNIS_PROFILE is set for this run and overrides the stored choice.' } : {}) };
+  }
+  if (action === 'use') {
+    if (!rest.length) throw new KitError('Usage: profile use <name>', { code: 'usage' });
+    const changed = useProfile(rest.join(' '));
+    const profile = resolveProfile({ profile: changed.profile });
+    return {
+      ...changed,
+      api_base: profile.api_base,
+      default_organization: profile.organization_name || profile.organization_slug || profile.organization_id || null,
+      note: 'Applies to every command and to the MCP server from its next call. A running agent session may need its tools reloaded to notice.',
+    };
+  }
+  throw new KitError(`Unknown profile action "${action}"`, { code: 'usage' });
+}
+
 async function commandTools({ positionals, flags, pairs }) {
   const [action, ...rest] = positionals;
   if (action === 'describe') {
@@ -258,6 +279,7 @@ const COMMANDS = {
   login: commandLogin,
   logout: commandLogout,
   org: commandOrg,
+  profile: commandProfile,
   tools: commandTools,
   api: commandApi,
   lint: commandLint,
@@ -282,7 +304,7 @@ async function main() {
   }
 
   // Commands whose positionals are prose or names keep "key=value" tokens.
-  const prose = ['run', 'session', 'org', 'lint', 'snapshot', 'wiki'].includes(command);
+  const prose = ['run', 'session', 'org', 'profile', 'lint', 'snapshot', 'wiki'].includes(command);
   const parsed = parseArgs(rest, { booleans: BOOLEAN_FLAGS, pairs: !prose });
   if (parsed.flags.help) {
     process.stdout.write(HELP);

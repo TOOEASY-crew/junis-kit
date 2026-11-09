@@ -69,6 +69,20 @@
    }
   },
   {
+   "name": "junis_use_profile",
+   "description": "Pick which stored key (profile) every following call uses, for example a development account next to the production one. Stored on this machine; JUNIS_PROFILE in the environment still wins. Without a name it lists the stored profiles and marks the one in use.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "profile": {
+      "type": "string",
+      "description": "A stored profile name. Omit to list."
+     }
+    },
+    "additionalProperties": false
+   }
+  },
+  {
    "name": "junis_run",
    "description": "Send a request to a Junis squad and get its answer. Targets the organization orchestrator by default, or one agent by name. Waits up to wait_seconds; a run that needs longer returns status \"running\" with a session_id to pass to junis_run_status. Pass session_id to continue an earlier conversation.",
    "inputSchema": {
@@ -260,6 +274,10 @@
      "confirmed": {
       "type": "boolean",
       "description": "put: required as true, after the user agreed, when the page already exists."
+     },
+     "profile": {
+      "type": "string",
+      "description": "A stored profile to use for this call only. Defaults to the profile in use."
      }
     },
     "required": [
@@ -267,12 +285,6 @@
      "file_key"
     ],
     "additionalProperties": false
-   },
-   "annotations": {
-    "readOnlyHint": false,
-    "destructiveHint": true,
-    "idempotentHint": false,
-    "openWorldHint": true
    }
   },
   {

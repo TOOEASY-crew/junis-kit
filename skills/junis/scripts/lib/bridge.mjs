@@ -8,7 +8,7 @@
 //   - "lazy" mode exposes a handful of discovery tools instead of the full
 //     catalogue, for agents that load every tool schema into context.
 import readline from 'node:readline';
-import { KIT_VERSION, customHostWarning, resolveProfile } from './config.mjs';
+import { KIT_VERSION, customHostWarning, listProfiles, resolveProfile, useProfile } from './config.mjs';
 import { KitError } from './http.mjs';
 import { SECRET_READ_TOOLS, destructiveApiReason, destructiveReason, secretReadReason } from './destructive.mjs';
 import { emptyTextFieldError } from './guards.mjs';
@@ -77,6 +77,18 @@ const KIT_TOOLS = [
       type: 'object',
       properties: { organization: { type: 'string', description: 'Name, slug or UUID.' } },
       required: ['organization'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    modes: ['full', 'lazy'],
+  },
+  {
+    name: 'junis_use_profile',
+    description:
+      'Pick which stored key (profile) every following call uses, for example a development account next to the production one. Stored on this machine; JUNIS_PROFILE in the environment still wins. Without a name it lists the stored profiles and marks the one in use.',
+    inputSchema: {
+      type: 'object',
+      properties: { profile: { type: 'string', description: 'A stored profile name. Omit to list.' } },
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -240,6 +252,7 @@ const KIT_TOOLS = [
         summary: { type: 'string', description: 'put: one-line note kept in the page history.' },
         min_chars: { type: 'integer', minimum: 1, description: 'put: refuse content shorter than this (guards against truncated text).' },
         confirmed: { type: 'boolean', description: 'put: required as true, after the user agreed, when the page already exists.' },
+        profile: { type: 'string', description: 'A stored profile to use for this call only. Defaults to the profile in use.' },
       },
       required: ['action', 'file_key'],
       additionalProperties: false,
@@ -491,6 +504,12 @@ export class Bridge {
       }
       case 'junis_use_organization':
         return textResult(await kit.useOrganization(args.organization, { signal }));
+      case 'junis_use_profile': {
+        if (!args.profile) return textResult({ profiles: listProfiles() });
+        const changed = useProfile(args.profile);
+        const profile = resolveProfile({ profile: changed.profile });
+        return textResult({ ...changed, api_base: profile.api_base, default_organization: profile.organization_name || profile.organization_slug || profile.organization_id || null });
+      }
       case 'junis_find_tools':
         return textResult(await kit.findTools({ ...args, signal }));
       case 'junis_describe_tool':
@@ -539,8 +558,9 @@ export class Bridge {
         return textResult(kit.lint(args.text, { allowedKeys: args.allowed_keys || [] }));
       case 'junis_wiki': {
         const fileKey = String(args.file_key || '');
-        if (args.action === 'get') return clipResult(textResult(await wikiGet(fileKey)));
-        if (args.action === 'append') return textResult(await wikiAppend(fileKey, { text: String(args.content ?? '') }));
+        const profile = typeof args.profile === 'string' && args.profile ? args.profile : undefined;
+        if (args.action === 'get') return clipResult(textResult(await wikiGet(fileKey, { profile })));
+        if (args.action === 'append') return textResult(await wikiAppend(fileKey, { text: String(args.content ?? '') }, { profile }));
         if (args.action !== 'put') throw new KitError(`junis_wiki action must be get, put or append, got ${JSON.stringify(args.action)}`, { code: 'usage' });
         // The CLI's --yes is the bridge's confirmed=true; the same rule as junis_api for PUT.
         const flags = {
@@ -551,7 +571,7 @@ export class Bridge {
           ...(args.min_chars !== undefined ? { min_chars: String(args.min_chars) } : {}),
         };
         try {
-          return textResult(await wikiPut(fileKey, flags));
+          return textResult(await wikiPut(fileKey, flags, { profile }));
         } catch (err) {
           if (err instanceof KitError && err.code === 'needs_confirmation') return textResult(needsConfirmation(err.message));
           throw err;

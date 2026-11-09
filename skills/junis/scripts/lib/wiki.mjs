@@ -7,6 +7,9 @@
 // if the page changed in between), then reads the page back and compares before reporting
 // success. Known limit: a page that does not exist yet is created without a version check, so
 // two first writers racing for the same key are not detected.
+//
+// `profile` names a stored profile for the call (the bridge passes it through); the command
+// line uses the global --profile flag instead.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,9 +64,9 @@ function requireBody(text, minChars) {
   }
 }
 
-async function readPage(fileKey) {
+async function readPage(fileKey, profile) {
   try {
-    return await callApi({ method: 'GET', path: PAGE, query: { file_key: fileKey } });
+    return await callApi({ method: 'GET', path: PAGE, query: { file_key: fileKey }, profile });
   } catch (err) {
     if (err instanceof KitError && err.status === 404) return null;
     throw err;
@@ -96,8 +99,8 @@ function confirmReplace(fileKey, flags) {
   });
 }
 
-export async function wikiGet(fileKey, { out } = {}) {
-  const page = await readPage(fileKey);
+export async function wikiGet(fileKey, { out, profile } = {}) {
+  const page = await readPage(fileKey, profile);
   if (!page) throw new KitError(`No wiki page '${fileKey}'`, { code: 'not_found', status: 404 });
   const content = String(page.content ?? '');
   const summary = { file_key: fileKey, version: page.version ?? null, chars: content.length, sha256: sha256Stripped(content) };
@@ -108,10 +111,10 @@ export async function wikiGet(fileKey, { out } = {}) {
   return { ...summary, content };
 }
 
-export async function wikiPut(fileKey, flags) {
+export async function wikiPut(fileKey, flags, { profile } = {}) {
   const body = bodyFrom(flags);
   requireBody(body, minCharsFrom(flags));
-  const current = await readPage(fileKey);
+  const current = await readPage(fileKey, profile);
   let backup = null;
   if (current) {
     confirmReplace(fileKey, flags);
@@ -126,7 +129,7 @@ export async function wikiPut(fileKey, flags) {
   };
   let written;
   try {
-    written = await callApi({ method: 'PUT', path: PAGE, body: payload });
+    written = await callApi({ method: 'PUT', path: PAGE, body: payload, profile });
   } catch (err) {
     if (err instanceof KitError && err.status === 409) {
       throw new KitError(`The page '${fileKey}' changed after it was read (version ${current?.version ?? '?'}); nothing was replaced.`, {
@@ -138,7 +141,7 @@ export async function wikiPut(fileKey, flags) {
     }
     throw err;
   }
-  const after = await readPage(fileKey);
+  const after = await readPage(fileKey, profile);
   const expected = sha256Stripped(body);
   const actual = sha256Stripped(after?.content ?? '');
   if (!after || actual !== expected) {
@@ -151,10 +154,10 @@ export async function wikiPut(fileKey, flags) {
   return { file_key: fileKey, created: !current, version: after.version ?? written?.version ?? null, chars: body.length, sha256: expected, backup };
 }
 
-export async function wikiAppend(fileKey, flags) {
+export async function wikiAppend(fileKey, flags, { profile } = {}) {
   const body = bodyFrom(flags);
   requireBody(body, 1);
-  const result = await callApi({ method: 'POST', path: APPEND, body: { file_key: fileKey, content: body } });
+  const result = await callApi({ method: 'POST', path: APPEND, body: { file_key: fileKey, content: body }, profile });
   return {
     file_key: fileKey,
     appended_chars: body.length,

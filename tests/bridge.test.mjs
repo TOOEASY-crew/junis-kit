@@ -124,10 +124,10 @@ describe('tool exposure', () => {
   test('lazy mode lists a handful of tools and stays small', async () => {
     const bridge = startBridge({ env: mock.env(), lazy: true });
     const list = await bridge.request('tools/list');
-    assert.ok(list.result.tools.length <= 12);
-    // Budget for the kit's own tools in lazy mode. Raised from 8,000 when junis_wiki joined (one tool, three actions);
-    // the platform catalogue stays behind junis_find_tools / junis_call_tool.
-    assert.ok(JSON.stringify(list.result.tools).length < 9600, 'lazy mode exists to keep tool schemas out of context');
+    assert.ok(list.result.tools.length <= 13);
+    // Budget for the kit's own tools in lazy mode. Raised from 8,000 when junis_wiki (one tool, three actions) and
+    // junis_use_profile joined; the platform catalogue stays behind junis_find_tools / junis_call_tool.
+    assert.ok(JSON.stringify(list.result.tools).length < 10400, 'lazy mode exists to keep tool schemas out of context');
     for (const name of ['junis_status', 'junis_find_tools', 'junis_describe_tool', 'junis_call_tool', 'junis_run', 'junis_run_status']) {
       assert.ok(list.result.tools.some((tool) => tool.name === name), `${name} is listed`);
     }
@@ -235,6 +235,28 @@ describe('after login', () => {
     const result = await bridge.callTool('junis_api', { path: '/brain/sources' });
     assert.equal(result.isError, false);
     assert.equal(result.data.total, 1);
+    await bridge.close();
+  });
+
+  test('junis_use_profile switches the stored profile every following call uses', async () => {
+    const kitHome = await loggedInHome();
+    const second = await runCli(['login', '--key-stdin', '--profile', 'dev'], { env: mock.env(), kitHome, input: `${USER_KEY}\n` });
+    assert.equal(second.code, 0, second.stdout);
+    const bridge = startBridge({ env: mock.env(), kitHome });
+    const listed = await bridge.callTool('junis_use_profile', {});
+    assert.deepEqual(listed.data.profiles.map((p) => [p.name, p.in_use]), [['default', true], ['dev', false]]);
+    const switched = await bridge.callTool('junis_use_profile', { profile: 'dev' });
+    assert.equal(switched.isError, false, JSON.stringify(switched.data));
+    assert.equal(switched.data.profile, 'dev');
+    assert.equal(switched.data.previous, 'default');
+    const status = await bridge.callTool('junis_status', {});
+    assert.equal(status.data.profile, 'dev');
+    const unknown = await bridge.callTool('junis_use_profile', { profile: 'nope' });
+    assert.equal(unknown.isError, true);
+    assert.equal(unknown.data.error, 'unknown_profile');
+    const page = await bridge.callTool('junis_wiki', { action: 'get', file_key: 'policies/returns', profile: 'default' });
+    assert.equal(page.isError, false, JSON.stringify(page.data));
+    assert.equal(page.data.version, 3);
     await bridge.close();
   });
 

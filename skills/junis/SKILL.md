@@ -61,6 +61,7 @@ Use whichever is present. They reach the same platform with the same stored key.
 | Connection state | `junis_status` | `status` |
 | Connect: the user approves a key request in the browser (nothing to copy), or stores a key they copied | `junis_connect` with `method: "browser"` (call again after they approve), or without it for the clipboard | `login --browser`, `login --from-clipboard` |
 | Set the default organization | `junis_use_organization` | `org use <name>` |
+| Pick which stored key (profile) the kit and its MCP server use, for example a development account next to the production one | `junis_use_profile` (without a name it lists the stored profiles) | `profile list`, `profile use <name>` |
 | Discover platform tools | `junis_find_tools`, `junis_describe_tool` | `tools <words>`, `tools describe <name>` |
 | Call a platform tool | the tool, or `junis_read_tool` / `junis_call_tool` | `tools call <name> key=value … ` |
 | Send a request to a squad (orchestrator or one agent) | `junis_run`, `junis_run_status` (with `organization_id` when not the default); with only the platform tools, `start_run` then `get_run` | `run <agent> <message> --org <uuid>`, `session wait <id> --org <uuid>` (the org flag only for another organization) |

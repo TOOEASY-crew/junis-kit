@@ -162,7 +162,7 @@ sessions and schedules.
 
 | Need | How |
 | --- | --- |
-| A second account or a test key | `login --profile <name>` stores a separate key; the key in use stays the same unless none was stored yet. A plain `login` always stores the user's own key as `default` and makes it the key in use (a partner key stored first is kept). Use the other key with `--profile <name>` after a command, or `profile="<name>"` on `junis_api`. `status` lists stored profiles under `other_profiles`. |
+| A second account or a test key | `login --profile <name>` stores a separate key; the key in use stays the same unless none was stored yet. A plain `login` always stores the user's own key as `default` and makes it the key in use (a partner key stored first is kept). Use the other key for one call with `--profile <name>` after a command, or `profile="<name>"` on `junis_api` and `junis_wiki`; make it the key in use for every call with `profile use <name>` (`junis_use_profile`), which the MCP server follows too. `JUNIS_PROFILE` in the environment still wins. `status` lists stored profiles under `other_profiles`. |
 | Private deployment | Set `JUNIS_API_BASE`, `JUNIS_MCP_URL` and `JUNIS_WEB_URL`. Use the exact MCP URL without a trailing slash. A host outside `junis.ai` (and not this machine) is refused with `host_not_allowed` until `JUNIS_ALLOW_CUSTOM_HOST=1` is set as well; `junis_status` then names the host. A `login` under an override saves the address in the profile. |
 | Accounts for another app's users (partner integration) | An organization key made with "Connect users from my own app", stored with `login --profile partner`. Everything else is in [partner-accounts.md](partner-accounts.md). A user key gets 403 on all of it. |
 
