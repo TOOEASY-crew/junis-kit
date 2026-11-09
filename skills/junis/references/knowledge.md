@@ -88,6 +88,17 @@ Every Knowledge endpoint of the External API is also a tool:
   `api_key_secret_name` (an organization secret already in the Junis vault — preferred) or as a direct
   value; with the kit CLI write `@env:VAR` or `@file:path` for the value so it never enters the
   model's context.
+- Example values from a database: by default Junis keeps a few sample rows and common column values
+  per table so agents read the data correctly; columns named like personal data and values in common
+  personal formats (phone numbers, e-mail addresses, card or resident numbers with separators) are masked. Pass `store_example_values: false`
+  to `knowledge_add_postgres_source` / `knowledge_db_connect` to keep the database's values out of
+  Junis (structure, keys and relations are still read). For a source already connected, an owner or
+  admin key with `brain:manage` calls `api PUT /brain/sources/<source_id>/example-values` with
+  `{"enabled": false}`: stored examples are removed at once and the database's tables are read again;
+  `{"enabled": true}` reads them back. While the database is being read the call returns 409 — try again
+  when it finishes. `reread_queued: false` after a change means the re-read did not start; run
+  `knowledge_source_retry`. The web shows the same switch on the
+  source row ("Stop storing example values").
 - Connected-database management: `knowledge_db_state`, `knowledge_db_tables`,
   `knowledge_db_describe` (one table), `knowledge_db_rerun`, `knowledge_db_suggest_names` (billed),
   `knowledge_db_roles` / `knowledge_db_set_roles` (which database role each group of people queries

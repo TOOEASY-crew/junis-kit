@@ -39,7 +39,7 @@ passing the id.
 | Invite, cancel an invitation, change roles (inviting needs the inviter's own Basic or Pro monthly plan; the pages offer only Admin and Member, and an owner row cannot be changed) | `https://junis.ai/team/members` (owners and admins) |
 | Make someone an owner, or change or remove an owner | Junis staff: `contact@junis.ai` |
 | Remove a member (never an owner); see members as a member | `https://junis.ai/settings/organization` → Members |
-| Accept an invitation | the invitee signs in at junis.ai with the invited address; it activates automatically or shows on `https://junis.ai/onboarding` |
+| Accept an invitation | the invitee signs in at junis.ai with the invited address and chooses **Accept** on the invitation Junis shows (or **Decline**); an invitation never activates on its own |
 | Rename, logo, delete the organization (rename and delete: owner only); who pays; allowed email domains and auto-join; welcome suggestions; setup guide; sign-in session length; clear history; Slack workspaces | `https://junis.ai/admin/dashboard` → Settings |
 | Organization API keys, including "Connect users from my own app" for partner accounts | `https://junis.ai/admin/dashboard` → API Keys |
 | Audit log; member data export and scheduled erasure (runs only where Junis has enabled it) | `https://junis.ai/team/audit`, `https://junis.ai/team/compliance` |
