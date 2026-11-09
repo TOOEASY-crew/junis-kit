@@ -11,6 +11,7 @@ import readline from 'node:readline';
 import { KIT_VERSION, customHostWarning, resolveProfile } from './config.mjs';
 import { KitError } from './http.mjs';
 import { SECRET_READ_TOOLS, destructiveApiReason, destructiveReason, secretReadReason } from './destructive.mjs';
+import { emptyTextFieldError } from './guards.mjs';
 import { PROTOCOL_VERSION, READ_PREFIX, deriveAnnotations } from './mcp-remote.mjs';
 import * as kit from './kit-tools.mjs';
 import { runStatus, seconds, startRun } from './run.mjs';
@@ -488,6 +489,8 @@ export class Bridge {
         if (String(args.name || '').startsWith('junis_')) {
           throw new KitError('junis_call_tool is for platform tools; call kit tools directly', { code: 'bad_tool' });
         }
+        const emptyField = emptyTextFieldError(args.arguments);
+        if (emptyField) throw emptyField;
         const reason = destructiveReason(args.name, args.arguments || {});
         if (reason && args.confirmed !== true) return textResult(needsConfirmation(reason));
         return withHint(await kit.callRemoteTool(args.name, args.arguments || {}, { signal }));
@@ -498,6 +501,10 @@ export class Bridge {
         return textResult(await runStatus({ ...args, wait_seconds: Math.min(seconds(args.wait_seconds, 30), 50), signal }));
       case 'junis_api': {
         const method = String(args.method || 'GET').toUpperCase();
+        if (method !== 'GET' && method !== 'DELETE') {
+          const emptyField = emptyTextFieldError(args.body);
+          if (emptyField) throw emptyField;
+        }
         // The same rule as the Claude Code hook: DELETE removes, PUT and PATCH overwrite (a PUT to /memory/... replaces the whole text),
         // and a few POSTs replace (the Knowledge map preset by default, graph or file imports with mode "replace").
         const apiReason = destructiveApiReason(method, args.path, { query: args.query, body: args.body });

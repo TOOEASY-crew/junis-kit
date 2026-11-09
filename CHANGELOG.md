@@ -4,6 +4,17 @@ All notable changes to the Junis kit. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the
 release tags users pin with `JUNIS_KIT_REF`.
 
+## Unreleased
+
+### Added
+
+- `wiki get|put|append`: safe wiki page writes from the command line — empty bodies are refused, the current page is backed up under the kit home (one file per write), the write carries the version that was read (a 409 comes back as `conflict` with the backup path), and the page is read back and compared before success is reported. The Claude Code hook asks before `wiki put` like it does before `api PUT`.
+
+### Changed
+
+- A write whose body sets `instruction` or `content` to an empty string is refused before it leaves the kit, on every path: `api`, `tools call` and the MCP bridge (`junis_api`, `junis_call_tool`). Typical cause: `instruction=@file` with a file that was never written.
+- `api --file` with a missing or empty payload file is now a clear `file_not_found` / `empty_payload` error (before: a raw ENOENT or a generic `bad_json`).
+
 ## [0.1.0] - 2026-11-05
 
 First tagged release.

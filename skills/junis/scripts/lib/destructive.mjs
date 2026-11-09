@@ -217,13 +217,13 @@ const MAX_LINE = 65_536;
 const CANNOT_CHECK = 'The command runs the Junis kit in a way this check cannot follow; confirm it.';
 
 // `node "$K" api DELETE …`: a script run through a variable may be the kit, whose name then never shows.
-const SCRIPT_FROM_VARIABLE = /(^|[\s;&|(])node\s+["']?\$\{?\w+\}?["']?\s+(api|tools)(\s|$)/;
+const SCRIPT_FROM_VARIABLE = /(^|[\s;&|(])node\s+["']?\$\{?\w+\}?["']?\s+(api|tools|wiki)(\s|$)/;
 // `node <any script> api DELETE /…` or `node <any script> tools call …`: the kit's
 // own shape under another name (a copy or a link of junis.mjs). Such a line is
 // read as a kit call. A wrapper script that calls the kit from inside is not
 // seen: this check knows the name and the shape, nothing more.
 const NODE_WORD = /^(.*[\\/])?node(\.exe)?$/i;
-const KIT_SHAPED = /(^|[\s;&|()'"])node(\.exe)?\s+(?:-\S*\s+)*\S+\s+(?:api\s+(?:--?\S+\s+)*["']?(?:GET|POST|PUT|PATCH|DELETE|\/)|tools\s+(?:--?\S+\s+)*["']?call\b)/i;
+const KIT_SHAPED = /(^|[\s;&|()'"])node(\.exe)?\s+(?:-\S*\s+)*\S+\s+(?:api\s+(?:--?\S+\s+)*["']?(?:GET|POST|PUT|PATCH|DELETE|\/)|tools\s+(?:--?\S+\s+)*["']?call\b|wiki\s+(?:--?\S+\s+)*["']?put\b)/i;
 
 export function destructiveCommandReason(command, { cwd } = {}, depth = 0, untrusted = false) {
   const text = asText(command);
@@ -276,7 +276,7 @@ function parsedCommandReason(text, { cwd, depth, untrusted, named = true }) {
       while (k < words.length && typeof words[k] === 'string' && words[k].startsWith('-')) k += 1;
       const script = words[k];
       const verb = words[k + 1];
-      if (typeof script === 'string' && !KIT_WORD.test(script) && (verb === 'api' || verb === 'tools')) {
+      if (typeof script === 'string' && !KIT_WORD.test(script) && (verb === 'api' || verb === 'tools' || verb === 'wiki')) {
         sawKit = true;
         calls += 1;
         if (calls > MAX_CALLS) return CANNOT_CHECK;
@@ -356,8 +356,18 @@ const fromShell = (value) => /[$`]/.test(asText(value));
 // A verb, method or tool name the shell may still expand ({DELETE,}, globs).
 const expandsInShell = (value) => /[$`{}*?[\]]/.test(asText(value));
 
+// `wiki put` replaces a page when it exists (the command itself backs the page up first). get and append are not asked.
+export function wikiCommandReason(action, fileKey) {
+  return action === 'put' ? `The command runs wiki put, which replaces the wiki page '${asText(fileKey)}' on Junis if it already exists.` : '';
+}
+
 function invocationReason(argv, options = {}) {
   const [verb, ...rest] = argv;
+  if (verb === 'wiki') {
+    const [action, fileKey] = parseArgs(rest, { booleans: BOOLEAN_FLAGS, pairs: false }).positionals;
+    if (expandsInShell(action) || expandsInShell(fileKey)) return BUILT_FROM_SHELL;
+    return wikiCommandReason(action, fileKey);
+  }
   if (verb !== 'tools' && verb !== 'api') return expandsInShell(verb) ? BUILT_FROM_SHELL : '';
   const parsed = parseArgs(rest, { booleans: BOOLEAN_FLAGS, pairs: true });
   let payload = commandPayload(parsed, options);
@@ -416,6 +426,8 @@ function patternCommandReason(text) {
     if (reason) return `The command calls ${name}: ${reason}`;
   }
   const FLAGS = String.raw`(?:--?\w[\w-]*(?:=\S+)?\s+)*`;
+  const wikiPut = new RegExp(String.raw`(?<=^|[\s;&|()'"])wiki\s+${FLAGS}["']?put["']?\s+["']?([^\s"']+)`, 'i').exec(text);
+  if (wikiPut) return wikiCommandReason('put', wikiPut[1]);
   const api = new RegExp(String.raw`(?<=^|[\s;&|()'"])api\s+${FLAGS}["']?(DELETE|PUT|PATCH)["']?\s+(\S+)`, 'i').exec(text);
   if (api) return destructiveApiReason(api[1], api[2]);
   const get = new RegExp(String.raw`(?<=^|[\s;&|()'"])api\s+${FLAGS}["']?GET["']?\s+["']?(\S+?)["']?(\s|$)`, 'i').exec(text);
