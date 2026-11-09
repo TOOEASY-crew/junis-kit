@@ -125,7 +125,9 @@ describe('tool exposure', () => {
     const bridge = startBridge({ env: mock.env(), lazy: true });
     const list = await bridge.request('tools/list');
     assert.ok(list.result.tools.length <= 12);
-    assert.ok(JSON.stringify(list.result.tools).length < 8000, 'lazy mode exists to keep tool schemas out of context');
+    // Budget for the kit's own tools in lazy mode. Raised from 8,000 when junis_wiki joined (one tool, three actions);
+    // the platform catalogue stays behind junis_find_tools / junis_call_tool.
+    assert.ok(JSON.stringify(list.result.tools).length < 9600, 'lazy mode exists to keep tool schemas out of context');
     for (const name of ['junis_status', 'junis_find_tools', 'junis_describe_tool', 'junis_call_tool', 'junis_run', 'junis_run_status']) {
       assert.ok(list.result.tools.some((tool) => tool.name === name), `${name} is listed`);
     }
@@ -233,6 +235,45 @@ describe('after login', () => {
     const result = await bridge.callTool('junis_api', { path: '/brain/sources' });
     assert.equal(result.isError, false);
     assert.equal(result.data.total, 1);
+    await bridge.close();
+  });
+
+  test('wiki tools read, replace with confirmation and append a page', async () => {
+    const kitHome = await loggedInHome();
+    const bridge = startBridge({ env: mock.env(), kitHome });
+    const page = await bridge.callTool('junis_wiki', { action: 'get', file_key: 'policies/returns' });
+    assert.equal(page.isError, false);
+    assert.equal(page.data.version, 3);
+    assert.equal(page.data.content, 'Returns within 30 days.');
+
+    const empty = await bridge.callTool('junis_wiki', { action: 'put', file_key: 'policies/returns', content: '  ', confirmed: true });
+    assert.equal(empty.isError, true);
+    assert.equal(empty.data.error, 'empty_body');
+
+    const asks = await bridge.callTool('junis_wiki', { action: 'put', file_key: 'policies/returns', content: 'Returns within 14 days.' });
+    assert.equal(asks.isError, false);
+    assert.equal(asks.data.status, 'needs_confirmation');
+    assert.equal(mock.state.wiki[ORG_A]['policies/returns'].content, 'Returns within 30 days.');
+
+    const replaced = await bridge.callTool('junis_wiki', { action: 'put', file_key: 'policies/returns', content: 'Returns within 14 days.', summary: 'shorter window', confirmed: true });
+    assert.equal(replaced.isError, false, JSON.stringify(replaced.data));
+    assert.equal(replaced.data.created, false);
+    assert.equal(replaced.data.version, 4);
+    assert.ok(replaced.data.backup.startsWith(kitHome));
+
+    const created = await bridge.callTool('junis_wiki', { action: 'put', file_key: 'guides/onboarding', content: '# Onboarding\n\nStart here.\n' });
+    assert.equal(created.isError, false, JSON.stringify(created.data));
+    assert.equal(created.data.created, true);
+    assert.equal(created.data.backup, null);
+
+    const appended = await bridge.callTool('junis_wiki', { action: 'append', file_key: 'guides/onboarding', content: 'Then read the policies.' });
+    assert.equal(appended.isError, false, JSON.stringify(appended.data));
+    assert.equal(appended.data.version, 2);
+    assert.equal(mock.state.wiki[ORG_A]['guides/onboarding'].content, '# Onboarding\n\nStart here.\n\n\nThen read the policies.');
+
+    const badAction = await bridge.callTool('junis_wiki', { action: 'delete', file_key: 'guides/onboarding' });
+    assert.equal(badAction.isError, true);
+    assert.equal(badAction.data.error, 'usage');
     await bridge.close();
   });
 
