@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { runCli, tempDir } from './helpers/harness.mjs';
+import { completeLines } from '../skills/junis/scripts/lib/doctor.mjs';
 import { ORG_A, ORG_B, ORG_KEY, USER_KEY, startMockJunis } from './helpers/mock-junis.mjs';
 
 let mock;
@@ -127,6 +128,15 @@ describe('snapshot', () => {
 
 describe('doctor', () => {
   const byName = (result, name) => result.json.checks.find((entry) => entry.check === name);
+
+  test('the bridge self-test waits for whole lines, however the pipe splits them', () => {
+    const init = JSON.stringify({ id: 1 });
+    const list = JSON.stringify({ id: 2, result: { tools: [{ name: 'x'.repeat(20_000) }] } });
+    const whole = `${init}\n${list}\n`;
+    assert.deepEqual(completeLines(whole.slice(0, 8192)), [init]);
+    assert.deepEqual(completeLines(`${init}\n${list}`), [init]);
+    assert.deepEqual(completeLines(whole), [init, list]);
+  });
 
   test('with nothing set up it names each fix, starting with the login link', async () => {
     const home = tempDir('junis-kit-home-');

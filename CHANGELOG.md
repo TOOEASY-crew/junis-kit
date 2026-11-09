@@ -53,6 +53,12 @@ release tags users pin with `JUNIS_KIT_REF`.
 - The hint for a missing permission says that browser login requests the
   permissions the platform offers, rather than every permission.
 
+### Fixed
+
+- `doctor` reported the local bridge as broken on macOS once its tool list
+  grew past 8 KiB: it parsed the second answer before the pipe had delivered
+  all of it. It now waits for whole lines.
+
 ## [0.1.0] - 2026-11-05
 
 First tagged release.

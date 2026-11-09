@@ -17,6 +17,13 @@ function check(name, ok, detail, fix) {
   return { check: name, ok, detail, ...(ok || !fix ? {} : { fix }) };
 }
 
+// Complete newline-terminated lines only: a pipe hands the answer over in
+// chunks (8 KiB on macOS), so the text after the last newline may still be
+// half of a message.
+export function completeLines(buffer) {
+  return buffer.split('\n').slice(0, -1).filter(Boolean);
+}
+
 function bridgeSelfTest() {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [SCRIPT, 'mcp', '--lazy'], { stdio: ['pipe', 'pipe', 'ignore'] });
@@ -27,7 +34,7 @@ function bridgeSelfTest() {
     }, 10_000);
     child.stdout.on('data', (chunk) => {
       buffer += chunk;
-      const lines = buffer.split('\n').filter(Boolean);
+      const lines = completeLines(buffer);
       if (lines.length < 2) return;
       clearTimeout(timer);
       child.stdin.end();
