@@ -32,6 +32,9 @@ function bridgeSelfTest() {
       child.kill();
       resolve({ ok: false, detail: 'no answer within 10s' });
     }, 10_000);
+    // Decode as one UTF-8 stream: concatenating Buffer chunks as strings turns a multibyte character split at a
+    // chunk boundary into U+FFFD (tool descriptions are not ASCII-only).
+    child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
       buffer += chunk;
       const lines = completeLines(buffer);
