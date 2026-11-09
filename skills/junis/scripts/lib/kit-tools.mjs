@@ -23,7 +23,7 @@ import { classifyToolError, explainError } from './errors.mjs';
 import { KitError, httpRequest, parseJsonSafe } from './http.mjs';
 import { lintInstruction } from './lint.mjs';
 import { shellWord } from './args.mjs';
-import { RemoteMcp, categorize, firstLine, searchTools, unwrapToolResult } from './mcp-remote.mjs';
+import { RemoteMcp, categorize, firstLine, nearToolNames, searchTools, unwrapToolResult } from './mcp-remote.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOOL_CACHE_MS = 5 * 60_000;
@@ -754,7 +754,7 @@ export async function describeTool(name, { signal } = {}) {
   const tools = await loadRemoteTools(profile, { signal });
   const tool = tools.find((entry) => entry.name === name);
   if (!tool) {
-    const near = searchTools(tools, { query: name.replace(/_/g, ' ') }).slice(0, 5).map((entry) => entry.tool.name);
+    const near = nearToolNames(tools, name);
     throw new KitError(`There is no tool named "${name}"`, { code: 'unknown_tool', detail: { did_you_mean: near } });
   }
   return { name: tool.name, category: categorize(tool.name), description: tool.description, input_schema: tool.inputSchema };

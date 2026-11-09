@@ -251,6 +251,26 @@ export function firstLine(text) {
   return String(text || '').split('\n').find((line) => line.trim())?.trim() || '';
 }
 
+// Names close to a misspelt or guessed tool name. Ranked by how many name words they share
+// (`make_agent` → every `*_agent*` tool), then alphabetically, so the answer does not depend on
+// which descriptions happen to contain the words. searchTools() is for finding tools by what
+// they do; for a wrong *name* it preferred tools whose description mentioned every word
+// (`actions_agent_set` for "make agent") and dropped `create_agent` once the catalogue grew.
+export function nearToolNames(tools, name, limit = 5) {
+  const words = new Set(String(name || '').toLowerCase().split(/[\s_-]+/).filter(Boolean));
+  const scored = tools
+    .map((tool) => {
+      const parts = new Set(tool.name.toLowerCase().split(/[_-]+/));
+      let shared = 0;
+      for (const word of words) if (parts.has(word)) shared += 1;
+      return { name: tool.name, shared };
+    })
+    .filter((entry) => entry.shared > 0)
+    .sort((a, b) => b.shared - a.shared || a.name.localeCompare(b.name));
+  if (scored.length) return scored.slice(0, limit).map((entry) => entry.name);
+  return searchTools(tools, { query: [...words].join(' ') }).slice(0, limit).map((entry) => entry.tool.name);
+}
+
 export function searchTools(tools, { query = '', category = '' } = {}) {
   const words = query.toLowerCase().split(/[\s_-]+/).filter(Boolean);
   const scored = tools

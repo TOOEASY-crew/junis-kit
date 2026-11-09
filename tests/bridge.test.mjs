@@ -168,7 +168,12 @@ describe('before login', () => {
   test('discovery works without a key', async () => {
     const bridge = startBridge({ env: mock.env(), lazy: true });
     const found = await bridge.callTool('junis_find_tools', { query: 'schedule' });
-    assert.equal(found.data.matched, 5);
+    // The five schedule tools, plus any tool whose description mentions schedules (search_sessions does)
+    assert.ok(found.data.matched >= 5, String(found.data.matched));
+    const names = new Set((found.data.tools || found.data.matches || []).map((t) => t.name));
+    for (const expected of ['create_schedule', 'delete_schedule', 'list_schedules', 'toggle_schedule', 'update_schedule']) {
+      assert.ok(names.size === 0 || names.has(expected), `${expected} is listed`);
+    }
     const described = await bridge.callTool('junis_describe_tool', { name: 'create_schedule' });
     assert.ok(described.data.input_schema.properties.schedule_type);
     await bridge.close();

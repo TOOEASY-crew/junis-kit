@@ -147,7 +147,9 @@ describe('reference files', () => {
       'update_soul', 'update_identity', 'delete_thread', 'get_products', 'create_pull_request', 'link_mcp', 'link_composio', 'link_device',
       'retry_after', 'add_objective',
     ]);
-    const prefix = /^(list|get|create|update|delete|patch|link|unlink|toggle|assign|unassign|import|add|remove|reorder|switch|clone|apply|send|retry|write|manage)_/;
+    // actions_* and knowledge_* were never checked against the catalogue before (2026-11-09 review); search_* stays out because
+    // the built-in agent tools (search_mcp_tool, search_rag_documents, search_conversations) share that prefix
+    const prefix = /^(list|get|create|update|delete|patch|link|unlink|toggle|assign|unassign|import|add|remove|reorder|switch|clone|apply|send|retry|write|manage|actions|knowledge)_/;
     for (const file of [...references.map((name) => path.join('references', name)), 'SKILL.md']) {
       const text = fs.readFileSync(path.join(SKILL_DIR, file), 'utf8');
       for (const match of text.matchAll(/`([a-z]+_[a-z_]+)(?:\([^`]*\))?`/g)) {

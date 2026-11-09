@@ -55,6 +55,9 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Fixed
 
+- `tools describe <wrong name>` suggests tools by name words (`make_agent` → `create_agent`, `clone_agent`, …) instead of by description search, which stopped naming `create_agent` once the catalogue grew.
+- The catalogue fixture the tests check documentation against now carries all 202 platform tools (actions_* and knowledge_* were never checked before). `doctor` decodes the bridge's output as one UTF-8 stream.
+
 - `doctor` reported the local bridge as broken on macOS once its tool list
   grew past 8 KiB: it parsed the second answer before the pipe had delivered
   all of it. It now waits for whole lines.
