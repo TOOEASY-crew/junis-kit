@@ -86,9 +86,13 @@ file.
 
 The kit asks before deletions, whole-text and credential replacements, list
 replacements, `clear_fields`, overwriting imports, revealing stored secrets
-(including a `junis_api` read of an MCP platform without `reveal=false`), and
-Knowledge POSTs that replace data. The exact rules are in
-`skills/junis/scripts/lib/destructive.mjs`.
+(including a `junis_api` read of an MCP platform without `reveal=false`),
+Knowledge POSTs that replace data, and Actions calls that reach beyond a
+draft: running an action (it acts in your own system; a dry run is not
+asked), replacing an agent's action list, changing or deleting a connection,
+deleting a draft and importing an OpenAPI document. The kit has no way to
+approve an action or a waiting action run; a person does that in the web app.
+The exact rules are in `skills/junis/scripts/lib/destructive.mjs`.
 
 How it asks depends on the agent. In the Claude Code plugin a PreToolUse hook
 asks, including for kit commands run through Bash. In other agents the

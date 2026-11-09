@@ -122,6 +122,12 @@ stories.
   links your computer, and a sub-agent runs commands, reads files and drives a browser there with your
   rights. With the device tool marked as required, an offline laptop marks the run as missing its tool
   instead of reporting an empty success.
+- "Let the maintenance agent open tickets in our maintenance system, but nothing goes out until I have
+  approved it." The agent drafts a connection and one typed action and shows the exact request it
+  would send. You approve the draft in the web app; from then on the maintenance agent has a single tool
+  that fills in the equipment, the summary and the priority and nothing else. A run marked for
+  confirmation waits for a person, and every run is listed with who asked and what came back. Until
+  your system's key is registered, the same flow runs on a simulated connection that sends nothing.
 - "Answer customer questions on help.example.com from these 40 help articles." The articles go into
   Knowledge, marked as shared publicly. Once you switch on public embedding in the web app, the chat
   widget's knowledge search sees only those sources. It runs only on the domains you allow, with a
@@ -141,6 +147,7 @@ kit update.
 | Squads | An orchestrator routes each request to sub-agents, which run in sequence, in parallel or in a loop. Squads can call other squads and ask the user a question in the web chat. |
 | Squad as code and versions | A squad exports to one JSON file that you plan against the live organization and apply. Every agent change is kept and can be rolled back. |
 | Runs and audit | Runs start on a schedule, from Slack, from CI or through the External API. Every tool call is recorded with its status. |
+| Actions | Typed operations on your own systems: an HTTP API, a signed webhook or one tool of a registered MCP server. A person approves each definition in the web app before any agent can use it, a run can require one or two people to confirm, and every run is recorded. |
 | Publishing | A chat widget for your website that searches only the sources you mark public (see the examples above). |
 | Wiki | Markdown pages that agents read and write, with version history, diffs and restore. |
 | Memory per user | A profile, kept facts, a daily log and periodic summaries reach the orchestrator each turn. Agents search past conversations by keyword and date. |
@@ -181,8 +188,8 @@ the key in one file, shapes the tool list per agent and returns a session id to 
 
 | Part | Role |
 | --- | --- |
-| Skill (`skills/junis/`) | Operating rules, known traps and 19 reference files, one per kind of job |
-| Local MCP bridge (`junis.mjs mcp`) | Connects the agent to the hosted Junis MCP server (about 177 tools) and the External API. Keeps the key in `~/.junis-kit/credentials.json` (or reads `JUNIS_API_KEY`), follows long runs and turns platform errors into next steps |
+| Skill (`skills/junis/`) | Operating rules, known traps and 20 reference files, one per kind of job |
+| Local MCP bridge (`junis.mjs mcp`) | Connects the agent to the hosted Junis MCP server (about 200 tools) and the External API. Keeps the key in `~/.junis-kit/credentials.json` (or reads `JUNIS_API_KEY`), follows long runs and turns platform errors into next steps |
 | Installer (`install.sh`, `junis.mjs install`) | Finds the coding agents on this machine and registers the skill and the MCP server with each |
 
 `skills/junis/scripts/junis.mjs` and its `lib/` modules are the command line, the bridge and the
@@ -207,7 +214,8 @@ tools do not appear twice.
   for this machine) and point at `junis.ai`, a subdomain of it or this machine, unless
   `JUNIS_ALLOW_CUSTOM_HOST=1` is also set.
 - Deletions, unlinks, whole-text and list replacements, revealing stored secrets, switching the web
-  app's organization, and Knowledge calls that replace data stop for your answer. In Claude Code the
+  app's organization, Knowledge calls that replace data, and action runs (which act in your own
+  systems) stop for your answer. In Claude Code the
   plugin's hook turns them into a permission prompt. In lazy mode they return `needs_confirmation` until
   the agent calls again with `confirmed=true`. In full mode without the plugin (Claude Code set up by
   `install.sh`, or `--full`), platform tools rely on their `destructiveHint` and your agent's approval
@@ -227,6 +235,8 @@ vulnerability.
   https://junis.ai/team/mcp-skills instead.
 - claude.ai web and mobile connectors accept only OAuth, which the hosted server does not offer, so the
   kit works in desktop and command-line agents.
+- The kit cannot approve an action, disable one or approve a waiting action run. A person does that in
+  the web app; an action the kit drafted does nothing until then.
 - Runs started by the kit do not stream. `cancel_run` stops one after the current step; that step
   finishes and is billed.
 - The kit sees no prices or spending. The payer reads them at https://junis.ai/usage.
@@ -271,13 +281,14 @@ you can do in the web app (plans, OAuth apps, publishing, team roles) are in
 
 | Agent | What is tested |
 | --- | --- |
-| Claude Code | Behaviour: 20 `claude plugin eval` cases in `evals/`, each run 3 times in real, isolated sessions against mocked Junis servers, with and without the plugin. Also `claude plugin validate .`, install tests and MCP handshake tests. |
+| Claude Code | Behaviour: 25 `claude plugin eval` cases in `evals/`, each run 3 times in real, isolated sessions against mocked Junis servers, with and without the plugin. Also `claude plugin validate .`, install tests and MCP handshake tests. |
 | Codex, Cursor, Gemini CLI, GitHub Copilot CLI, OpenCode | Install and MCP handshake tests. No behaviour evals. |
 | VS Code (Copilot) | Install planning (dry run) and MCP handshake tests. |
 | Devin Desktop, Claude Desktop | MCP handshake tests. Their file locations are not tested. |
 
-Latest full eval run, November 4, 2026, on the skill as it was that day. Later changes have not been
-re-measured.
+Latest full eval run, November 4, 2026, on the skill as it was that day and the 20 cases that existed
+then. Later changes have not been re-measured, and the five Actions cases added since have not been
+run.
 
 | Result | Cases |
 | --- | --- |

@@ -51,7 +51,7 @@ through either the tools or the CLI, so the skill describes both in one table.
 | Mode | Who | Why |
 | --- | --- | --- |
 | Full: every platform tool listed with its schema | Claude Code | It defers MCP tool schemas and loads them on use, so the catalogue costs only names. Graders and hooks can match `mcp__plugin_junis_junis__<tool>`. |
-| Lazy: 11 kit tools; platform tools found with `junis_find_tools`, described with `junis_describe_tool`, read through `junis_read_tool` (read-only, safe to auto-approve) and changed through `junis_call_tool` (a call that `destructive.mjs` flags returns `needs_confirmation` until `confirmed=true`; `junis_api` does the same for `DELETE`/`PUT`/`PATCH` and Knowledge POSTs that replace data) | Everyone else | These clients load every schema up front. Eleven tools cost ~8 KB against ~185 KB for the 175-tool hosted catalogue (`tests/fixtures/tools-list.prod.json`, recorded 2026-11-04). |
+| Lazy: 11 kit tools; platform tools found with `junis_find_tools`, described with `junis_describe_tool`, read through `junis_read_tool` (read-only, safe to auto-approve) and changed through `junis_call_tool` (a call that `destructive.mjs` flags returns `needs_confirmation` until `confirmed=true`; `junis_api` does the same for `DELETE`/`PUT`/`PATCH`, Knowledge POSTs that replace data and `POST /actions/run`) | Everyone else | These clients load every schema up front. Eleven tools cost ~8 KB against ~185 KB for the 175-tool hosted catalogue (`tests/fixtures/tools-list.prod.json`, recorded 2026-11-04). |
 
 The bridge answers both protocol eras: stateless `2026-07-28` (`server/discover`,
 per-request version in `_meta`, `resultType` on results) and the `initialize`
@@ -63,9 +63,13 @@ handshake of older clients, with `-32022` for an unsupported version.
    preferred route: the browser.
 2. Browser approval (`junis_connect` with `method: "browser"`, command
    `login --browser`) uses the platform's key request flow. The kit posts a
-   request with a SHA-256 challenge of a one-time verifier and 26 scopes, every
+   request with a SHA-256 challenge of a one-time verifier and 29 scopes, every
    permission the skill uses (the web app's "Coding agents" preset minus two
-   unused admin scopes; the platform's defaults if it rejects one of them),
+   unused admin scopes). A platform that does not know one of them refuses
+   the list with 400 `invalid_scopes`; the kit then asks once for the
+   intersection with the `available_scopes` the refusal names (the 26 core
+   scopes when it names none), and for the platform's defaults only if that
+   fails or the 400 was about something else,
    keeps the pending request in `~/.junis-kit/pending-login.json` (0600), and
    hands back the approval link. The user signs in, reviews the permissions
    and approves. The bridge keeps polling in the background with the
@@ -137,7 +141,7 @@ followed and read back the same way by session id.
 | Organization ids that are not UUIDs refused before the call | `kit-tools.mjs` |
 | Platform errors mapped to the user's next step (scopes, subscription, credits, rate limit) | `explainError` |
 | Instruction lint: brace state keys (an unknown one silently becomes empty text), artefacts, a few common key shapes (not a general secret scanner) | `lint.mjs`, exposed as a tool and a command |
-| One definition of a destructive call: deletions, whole-text and credential replacements, list replacements, `clear_fields`, overwriting imports, revealing stored secrets, Knowledge POSTs that replace data | `destructive.mjs`, shared by the bridge and the hook |
+| One definition of a destructive call: deletions, whole-text and credential replacements, list replacements, `clear_fields`, overwriting imports, revealing stored secrets, Knowledge POSTs that replace data, and action runs (they act in a system outside Junis; a dry run is not asked), action assignments, connection changes and OpenAPI imports | `destructive.mjs`, shared by the bridge and the hook |
 | Confirmation prompt, including kit commands run through Bash, recognised by name (`junis.mjs`, `junis-kit`) and by shape (`node <any script> api …`, `node <any script> tools call …`, so a copy or link under another name counts): the line is split and parsed like the CLI does, and a line it cannot follow (command substitution, `eval`, heredocs, a script run through a variable, more than 64 KB) or a check that fails is asked about rather than let through. A wrapper script that calls the kit from inside is not seen. Claude Code allows the hook 10 seconds and fails open past that | `hooks/confirm-destructive.mjs` (Claude Code PreToolUse; plugin installs only) |
 | `needs_confirmation` until `confirmed=true` (the agent sets the flag, so this makes it ask but cannot prove the user answered) | `bridge.mjs`: `junis_call_tool` and `junis_read_tool` in lazy mode, `junis_api` in both modes, and `get_mcp_platform` with `reveal_secrets=true` in full mode |
 | `readOnlyHint` / `destructiveHint` on every platform tool: the hosted server's own annotations (every tool that changes or deletes existing data is destructive), derived by name only when the server sends none | `bridge.mjs`, `mcp-remote.mjs` |
@@ -193,7 +197,7 @@ release commit is then tagged.
 | --- | --- | --- |
 | Unit and integration | `node --test` against an in-process mock of the External API and the hosted MCP server, serving the real production tool catalogue | CLI, bridge, runs (including dropped connections), installer on sandbox homes, snapshot, doctor |
 | Structure | `tests/skill.test.mjs` | Frontmatter rules, reference links, every tool name in the text exists, no secrets, manifests in sync, hook behaviour |
-| Behaviour (Claude Code only) | `claude plugin eval` with MCP mocks and a no-plugin baseline arm, twenty cases in `evals/`; a run writes its results to `evals/results/` | The skill fires on natural Korean requests and changes what the agent does: connects before building, builds from the live inventory, follows long runs, keeps secrets out, diagnoses by reading the run, links OAuth apps and MCP servers and devices the safe way, builds RAG agents within the platform's rules, tunes settings by reading first and verifying by running, edits identity by patch, starts runs from GitHub events once per event, keeps a regression set around instruction changes, stays quiet on unrelated requests |
+| Behaviour (Claude Code only) | `claude plugin eval` with MCP mocks and a no-plugin baseline arm, twenty-five cases in `evals/`; a run writes its results to `evals/results/` | The skill fires on natural Korean requests and changes what the agent does: connects before building, builds from the live inventory, follows long runs, keeps secrets out, diagnoses by reading the run, links OAuth apps and MCP servers and devices the safe way, builds RAG agents within the platform's rules, tunes settings by reading first and verifying by running, edits identity by patch, starts runs from GitHub events once per event, keeps a regression set around instruction changes, stays quiet on unrelated requests |
 | Other agents | Install tests on sandbox homes (Codex, Cursor, Gemini CLI, Copilot CLI, OpenCode written and checked; VS Code planned in a dry run) and MCP handshake tests with a scripted stdio client | The installer writes each agent's format without a credential, and the bridge answers both protocol eras. Not that each agent loads and follows the skill |
 | Extensibility | `tests/extensibility.test.mjs` | A tool the platform adds after the kit was written is listed, found, described and called through the full bridge, the lazy bridge and the command line without any change to the kit |
 

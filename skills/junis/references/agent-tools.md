@@ -42,6 +42,7 @@ agent's `tools` or instruction the agent-side version is meant. `list_content`,
 | Setting | `web_search_enabled=true`: Claude models search through the provider, Gemini 3 through Google; OpenAI, OpenRouter, Azure and Gemini 2 models get `openai_web_search` added. Turning it off does not remove an `openai_web_search` listed in `tools`. |
 | Assigned skill | Adds `use_skill` and `read_skill_file`; a code skill adds `run_code`, the sandbox tools and `openai_web_search`; a skill with required connections adds `check_connections`. |
 | Linked connection | MCP platforms, OAuth apps and devices bring their own tools, all of them (one OAuth app can bring dozens). Trim them per agent with `get_agent_tool_access` then `set_agent_enabled_tools` (per link; `null` means all), and mark the ones that need a person's approval with `set_agent_confirmation_tools`; `get_agent` does not show the trim, `get_agent_effective_config` does. `update_agent` keeps the trim of links that stay linked. OAuth app tools appear as `composio_<ACTION>`. |
+| Assigned action | `actions_agent_set` gives the agent one tool `action_<name>` per approved action of the organization ([actions.md](actions.md)). Never list those names in `tools`. An action whose risk is `confirm` asks the person in the web chat first and is not run where nobody can answer (schedules, pipeline steps, agents called as tools); `two_person` is filed for approval instead of run. |
 | Automatic | See "Given automatically". |
 
 Keep five to ten tools per agent. Beyond fifteen, the agent chooses worse;
@@ -94,7 +95,7 @@ shows the gap). Do not add them to `tools`.
 | `wiki_list`, `wiki_read`, `wiki_search`, `wiki_create`, `wiki_update`, `wiki_edit`, `wiki_append`, `wiki_rename`, `wiki_history` | The shared wiki (`wiki_history` reads a page's earlier versions) |
 | `search_conversations`, `read_conversation` | The user's past conversations |
 | `squad_list`, `call_another_squad` | Other organizations the acting user belongs to. Waits up to 180 s, returns at most 6,000 characters, nests at most 3 deep, and bills the called organization. |
-| `brain_search`, `brain_graph_count`, `brain_graph_path`, `brain_graph_whatif`, `brain_graph_subgraph`, `brain_graph_neighbors`, `brain_graph_documents`; with database sources `brain_sql` (not when the organization allows templates only), `brain_query` (approved query templates) and `brain_db_schema` (large schemas); `brain_ask` where the planner is on | Knowledge, on the orchestrator, once the organization has a ready source. The exact set depends on the sources and on organization settings: read it with `get_agent_effective_config`. |
+| `brain_search`, `brain_graph_count`, `brain_graph_path`, `brain_graph_whatif`, `brain_graph_subgraph`, `brain_graph_neighbors`, `brain_graph_documents`; with database sources `brain_sql` (not when the organization allows templates only), `brain_query` (approved query templates) and `brain_db_schema` (large schemas); `brain_ask` where the planner is on; `brain_graph_around` where an owner or admin switched on "Set-level graph questions", and `brain_graph_query` once a verified graph question is approved | Knowledge, on the orchestrator, once the organization has a ready source. The exact set depends on the sources and on organization settings: read it with `get_agent_effective_config`. |
 
 Sub-agents do not receive them. A sub-agent that must write to the wiki needs
 the wiki tools named in its `tools`, and they only work when the acting user is
@@ -192,6 +193,10 @@ they have an MCP platform linked or at least two regular tools.
 
 Block format and secret references: [instructions.md](instructions.md).
 Header values must be ASCII. The default timeout is thirty seconds.
+
+When the call is a write that a person must approve before agents may use it,
+or confirm each time, define it as an action instead ([actions.md](actions.md)):
+the request is fixed by the approved definition and every run is recorded.
 
 When an instruction describes a request body, show the exact JSON. Prose such
 as "call it with an empty body" has led models to send `{"body": {}}`.

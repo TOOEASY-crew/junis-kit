@@ -12,11 +12,14 @@ The server starts with a few discovery tools (`junis_status`, `junis_connect`,
 `junis_read_tool` and changes through `junis_call_tool`. A call that deletes,
 replaces a whole text, credentials or a list, clears fields, overwrites an
 import, reveals stored secrets, switches the web app's organization
-(`switch_organization`) or is a team batch containing any of these comes back
-as `needs_confirmation`: ask the user, and only if they agree call again with
+(`switch_organization`), runs an action in one of the organization's own
+systems (`actions_run` without `dry_run`) or is a team batch containing any of
+these comes back as `needs_confirmation`: ask the user, and only if they agree call again with
 `confirmed=true`. A `reveal_secrets` read that comes back this way is sent
 again through `junis_call_tool` with `confirmed=true`. `junis_api` does the
-same for `DELETE`, `PUT`, `PATCH` and Knowledge POSTs that replace data.
+same for `DELETE`, `PUT`, `PATCH`, Knowledge POSTs that replace data and
+`POST /actions/run`. No tool approves an action or a waiting action run: a
+person does that in the web app, and a drafted action does nothing until then.
 
 Whenever the user mentions Junis, 주니스, a squad (스쿼드), an orchestrator or
 sub-agents, or wants AI agents set up, changed, run, scheduled or fixed, read

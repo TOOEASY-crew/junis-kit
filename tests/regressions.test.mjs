@@ -8,7 +8,7 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { REPO, runCli, startBridge, tempDir } from './helpers/harness.mjs';
 import { ORG_A, USER_KEY, startMockJunis } from './helpers/mock-junis.mjs';
-import { destructiveReason, isDestructiveTool } from '../skills/junis/scripts/lib/destructive.mjs';
+import { destructiveApiReason, destructiveCommandReason, destructiveReason, isDestructiveTool } from '../skills/junis/scripts/lib/destructive.mjs';
 import { explainError } from '../skills/junis/scripts/lib/errors.mjs';
 import { httpRequest } from '../skills/junis/scripts/lib/http.mjs';
 import { RemoteMcp, MODERN_PROTOCOL_VERSION } from '../skills/junis/scripts/lib/mcp-remote.mjs';
@@ -35,7 +35,8 @@ describe('every destructive tool is asked about, on every path', () => {
   const asks = (out) => out !== '' && JSON.parse(out).hookSpecificOutput.permissionDecision === 'ask';
 
   test('tools on the shared list always carry a reason', () => {
-    for (const name of ['squad_apply', 'rollback_agent', 'set_agent_enabled_tools', 'set_agent_confirmation_tools', 'set_tool_safety', 'set_flag_org_opt_out']) {
+    for (const name of ['squad_apply', 'rollback_agent', 'set_agent_enabled_tools', 'set_agent_confirmation_tools', 'set_tool_safety', 'set_flag_org_opt_out',
+      'actions_agent_set', 'actions_connection_update', 'actions_draft_update', 'actions_import_openapi']) {
       assert.ok(isDestructiveTool(name), name);
       assert.ok(destructiveReason(name, { organization_id: 'o' }), `${name} has no reason`);
     }
@@ -50,6 +51,66 @@ describe('every destructive tool is asked about, on every path', () => {
     assert.equal(destructiveReason('knowledge_db_checks', {}), '');
   });
 
+  test('Actions: a run, a deletion, a replaced list, connection or draft and a bulk import are asked; new drafts, previews and reads are not', () => {
+    // An action run reaches a system outside Junis, so it is asked like a deletion; a dry run sends nothing.
+    assert.ok(isDestructiveTool('actions_run'));
+    assert.match(destructiveReason('actions_run', { name: 'open_ticket', args: { title: 'x' } }), /outside Junis/);
+    assert.match(destructiveReason('actions_run', { name: 'open_ticket', dry_run: false }), /outside Junis/);
+    for (const value of [true, 'true', 1]) assert.equal(destructiveReason('actions_run', { name: 'open_ticket', dry_run: value }), '', `dry_run=${value}`);
+    for (const name of ['actions_connection_delete', 'actions_draft_delete']) {
+      assert.ok(isDestructiveTool(name), name);
+      assert.match(destructiveReason(name, { organization_id: 'o' }), /cannot be undone/, name);
+    }
+    assert.match(destructiveReason('actions_agent_set', { agent_id: 'a', actions: [] }), /whole list/);
+    assert.match(destructiveReason('actions_connection_update', { connection_id: 'c', is_active: false }), /switches the connection/);
+    assert.match(destructiveReason('actions_import_openapi', { spec: '{}', operations: ['createOrder'] }), /one draft action/);
+    // A draft update replaces the whole draft in place (the External PUT is asked by its verb too) — the tool asks the same way (2026-11-09)
+    assert.match(destructiveReason('actions_draft_update', { definition_id: 'd1', description: 'x', effect: 'write' }), /replaces the whole draft/);
+    for (const name of ['actions_overview', 'actions_connections', 'actions_list', 'actions_get', 'actions_runs', 'actions_run_get', 'actions_agent_get',
+      'actions_connection_create', 'actions_connection_test', 'actions_draft_create', 'actions_dry_run', 'actions_import_openapi_preview']) {
+      assert.equal(isDestructiveTool(name), false, name);
+      assert.equal(destructiveReason(name, { organization_id: 'o', dry_run: false }), '', name);
+    }
+    // The same calls through the External API: PUT and DELETE are asked by their verb, these two POSTs by their route.
+    assert.match(destructiveApiReason('POST', '/actions/run', { body: { name: 'open_ticket', args: {} } }), /outside Junis/);
+    assert.match(destructiveApiReason('POST', '/api/external/actions/run/', { body: { name: 'open_ticket' } }), /outside Junis/);
+    assert.equal(destructiveApiReason('POST', '/actions/run', { body: { name: 'open_ticket', dry_run: true } }), '');
+    assert.match(destructiveApiReason('POST', '/actions/import/openapi', { body: { spec: '{}' } }), /one draft action/);
+    assert.equal(destructiveApiReason('POST', '/actions/import/openapi/preview', { body: { spec: '{}' } }), '');
+    for (const quiet of ['/actions/connections', '/actions/connections/c1/test', '/actions/definitions', '/actions/definitions/d1/dry-run']) {
+      assert.equal(destructiveApiReason('POST', quiet, { body: {} }), '', quiet);
+    }
+    assert.equal(destructiveApiReason('GET', '/actions/runs'), '');
+    assert.ok(destructiveApiReason('PUT', '/actions/agents/a1', { body: { actions: [] } }));
+    assert.ok(destructiveApiReason('DELETE', '/actions/definitions/d1'));
+    // And on the command line, read the way the CLI will send it.
+    const kit = 'node /x/junis-kit/skills/junis/scripts/junis.mjs';
+    assert.ok(destructiveCommandReason(`${kit} tools call actions_run name=open_ticket --json '{"args":{"title":"x"}}'`));
+    assert.equal(destructiveCommandReason(`${kit} tools call actions_run name=open_ticket dry_run=true`), '');
+    assert.equal(destructiveCommandReason(`${kit} tools call actions_run --json '{"name":"open_ticket","dry_run":true}'`), '');
+    assert.ok(destructiveCommandReason(`${kit} tools call actions_run --json -`), 'arguments from stdin cannot be read, so it is asked');
+    assert.ok(destructiveCommandReason(`${kit} api POST /actions/run --json '{"name":"open_ticket","args":{}}'`));
+    assert.equal(destructiveCommandReason(`${kit} api POST /actions/run --json '{"name":"open_ticket","dry_run":true}'`), '');
+    assert.ok(destructiveCommandReason(`${kit} tools call actions_draft_delete definition_id=d1`));
+    assert.equal(destructiveCommandReason(`${kit} tools call actions_dry_run definition_id=d1`), '');
+    assert.equal(destructiveCommandReason(`${kit} tools call actions_draft_create --json '{"name":"open_ticket"}'`), '');
+  });
+
+  test('Actions import (junis.actions/v1): asked only when it really writes — the tool previews by default, the route imports by default', () => {
+    const doc = { format: 'junis.actions/v1', connections: [], actions: [] };
+    assert.ok(isDestructiveTool('actions_import'));
+    for (const value of [false, 'false', 0, 'no']) assert.match(destructiveReason('actions_import', { document: doc, dry_run: value }), /action drafts/, `dry_run=${value}`);
+    for (const input of [{ document: doc }, { document: doc, dry_run: true }, { document: doc, dry_run: 'true' }]) {
+      assert.equal(destructiveReason('actions_import', input), '', JSON.stringify(input));
+    }
+    assert.equal(isDestructiveTool('actions_export'), false);
+    assert.equal(destructiveReason('actions_export', { organization_id: 'o' }), '');
+    assert.match(destructiveApiReason('POST', '/actions/import', { body: { document: doc } }), /action drafts/);
+    assert.match(destructiveApiReason('POST', '/api/external/actions/import', { body: { document: doc, dry_run: false } }), /action drafts/);
+    assert.equal(destructiveApiReason('POST', '/actions/import', { body: { document: doc, dry_run: true } }), '');
+    assert.equal(destructiveApiReason('GET', '/actions/export', {}), '');
+  });
+
   test('the designed exceptions stay: a bundle create and a platform rename are not asked', () => {
     assert.equal(destructiveReason('manage_skill_bundle', { action: 'create' }), '');
     assert.equal(destructiveReason('update_mcp_platform', { display_name: 'x' }), '');
@@ -62,6 +123,14 @@ describe('every destructive tool is asked about, on every path', () => {
     assert.ok(asks(hook('mcp__plugin_junis_junis__junis_call_tool', { name: 'squad_apply', arguments: { plan_id: 'p' } })));
     assert.ok(asks(hook('Bash', { command: 'node /x/junis-kit/skills/junis/scripts/junis.mjs tools call squad_apply plan_id=p' })));
     assert.ok(asks(hook('Bash', { command: 'node /x/junis-kit/skills/junis/scripts/junis.mjs tools call knowledge_source_delete source_id=s' })));
+    assert.ok(asks(hook('mcp__plugin_junis_junis__actions_run', { name: 'open_ticket', args: { title: 'x' } })));
+    assert.ok(asks(hook('mcp__junis__actions_agent_set', { agent_id: 'a', actions: ['open_ticket'] })));
+    assert.ok(asks(hook('mcp__plugin_junis_junis__junis_call_tool', { name: 'actions_run', arguments: { name: 'open_ticket' } })));
+    assert.ok(asks(hook('mcp__plugin_junis_junis__junis_api', { method: 'POST', path: '/actions/run', body: { name: 'open_ticket' } })));
+    assert.ok(asks(hook('Bash', { command: 'node /x/junis-kit/skills/junis/scripts/junis.mjs tools call actions_run name=open_ticket' })));
+    assert.equal(hook('mcp__plugin_junis_junis__actions_run', { name: 'open_ticket', dry_run: true }), '', 'a dry run sends nothing');
+    assert.equal(hook('mcp__plugin_junis_junis__actions_dry_run', { definition_id: 'd1', args: {} }), '');
+    assert.equal(hook('mcp__plugin_junis_junis__actions_draft_create', { name: 'open_ticket' }), '');
   });
 
   test('the lazy bridge returns needs_confirmation first', async () => {
@@ -70,6 +139,10 @@ describe('every destructive tool is asked about, on every path', () => {
     try {
       const result = await bridge.callTool('junis_call_tool', { name: 'squad_apply', arguments: { organization_id: ORG_A, plan_id: 'p' } });
       assert.equal(result.data.status, 'needs_confirmation', JSON.stringify(result.data));
+      const run = await bridge.callTool('junis_call_tool', { name: 'actions_run', arguments: { organization_id: ORG_A, name: 'open_ticket', args: {} } });
+      assert.equal(run.data.status, 'needs_confirmation', JSON.stringify(run.data));
+      const api = await bridge.callTool('junis_api', { method: 'POST', path: '/actions/run', body: { name: 'open_ticket', args: {} } });
+      assert.equal(api.data.status, 'needs_confirmation', JSON.stringify(api.data));
     } finally {
       await bridge.close();
     }
@@ -304,6 +377,18 @@ describe('error hints lead with the cheapest fix', () => {
     const { hint } = explainError('403 {"detail":{"error":"insufficient_scopes","missing_scopes":["secrets:manage"]}}');
     assert.match(hint, /Add permissions/);
     assert.match(hint, /browser/i);
+    assert.ok(hint.indexOf('Add permissions') < hint.indexOf('new key'), hint);
+  });
+
+  test('a missing Actions permission gets the same two fixes, without promising what an older platform cannot give', () => {
+    // Browser login asks for the Actions permissions only where the platform offers them (it retries without
+    // them otherwise), so the hint must not say that logging in again always grants every permission.
+    const { hint } = explainError("Junis API error 403: {'error': 'insufficient_scopes', 'missing_scopes': ['actions:manage']}");
+    assert.match(hint, /actions:manage/);
+    assert.match(hint, /Add permissions/);
+    assert.match(hint, /browser login again/);
+    assert.match(hint, /that this platform offers/);
+    assert.doesNotMatch(hint, /every permission the kit needs/);
     assert.ok(hint.indexOf('Add permissions') < hint.indexOf('new key'), hint);
   });
 });

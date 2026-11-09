@@ -301,14 +301,34 @@ export async function connect({ key, profileName, keepClipboard = false, fromCli
 // for a key, the user approves it in the browser where they are signed in,
 // and the kit collects it with a one-time verifier. Nothing is copied or
 // pasted, so it also works in remote shells and containers without a
-// clipboard. The request asks for every permission a personal key can hold
-// (the web app's "Coding agents" preset); the user sees them before approving.
-export const KEY_REQUEST_SCOPES = [
+// clipboard. The request asks for every permission the skill uses (the web
+// app's "Coding agents" preset minus two unused admin scopes); the user sees
+// them before approving.
+// The permissions every platform version that has the key request flow knows.
+// It is what the kit falls back to when a platform refuses a newer one and
+// does not say which permissions it offers.
+export const KEY_REQUEST_CORE_SCOPES = [
   'orchestrator:invoke', 'orchestrator:stream', 'sessions:read', 'sessions:messages', 'agents:list', 'agents:invoke',
   'organizations:read', 'organizations:manage', 'agents:manage', 'relationships:manage', 'mcp:manage', 'datastores:manage',
   'sessions:manage', 'schedules:manage', 'skills:manage', 'composio:manage', 'content:read', 'content:retry',
   'rag:upload', 'rag:read', 'rag:delete', 'brain:read', 'brain:manage', 'wiki:read', 'wiki:manage', 'secrets:manage',
 ];
+// Permissions added to the platform after the core list. A platform that does
+// not know one yet refuses the whole request; startBrowserLogin then asks again without it.
+export const KEY_REQUEST_NEWER_SCOPES = ['actions:read', 'actions:run', 'actions:manage'];
+export const KEY_REQUEST_SCOPES = [...KEY_REQUEST_CORE_SCOPES, ...KEY_REQUEST_NEWER_SCOPES];
+
+// The list to ask for after the platform refused the full one for a
+// permission it does not know (400 `invalid_scopes`): the permissions it says
+// it offers, in the kit's order, or the core list when it names none. null
+// when the refusal was about something else, or when nothing narrower is left.
+export function reducedKeyRequestScopes(refusal, sent = KEY_REQUEST_SCOPES) {
+  const detail = refusal?.detail;
+  if (!detail || typeof detail !== 'object' || detail.error !== 'invalid_scopes') return null;
+  const offered = Array.isArray(detail.available_scopes) ? detail.available_scopes.filter((scope) => typeof scope === 'string') : [];
+  const reduced = offered.length ? sent.filter((scope) => offered.includes(scope)) : sent.filter((scope) => KEY_REQUEST_CORE_SCOPES.includes(scope));
+  return reduced.length && reduced.length < sent.length ? reduced : null;
+}
 
 // Narrower requests (`login --browser --scopes <preset>`): a key that only
 // reads, or one that runs squads and reads results but cannot change them.
@@ -521,7 +541,11 @@ export async function startBrowserLogin({ profileName, restart = false, scopes =
       hint: `Use a preset (${Object.keys(KEY_REQUEST_PRESETS).join(', ')}) or leave --scopes out for the default permissions.`,
     });
   }
-  // A platform that no longer knows one of the permissions answers 400: ask for its defaults instead.
+  // A platform that does not know one of the permissions yet refuses the whole list (400 invalid_scopes):
+  // ask once more for the ones it offers, so the key is as wide as that platform allows.
+  const reduced = started.status === 400 ? reducedKeyRequestScopes(started.data) : null;
+  if (reduced) started = await ask(reduced);
+  // Any other 400, or a second refusal: ask for the platform's defaults instead.
   if (started.status === 400) started = await ask(null);
   if (started.status !== 200 || !started.data?.device_code) {
     throw new KitError(`The key request could not be started (HTTP ${started.status})`, {

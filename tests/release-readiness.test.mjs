@@ -13,7 +13,7 @@ import { CLI, REPO, runCli, startBridge, tempDir } from './helpers/harness.mjs';
 import { ORG_A, USER_KEY, startMockJunis } from './helpers/mock-junis.mjs';
 import { customHostWarning, resolveProfile, saveProfile } from '../skills/junis/scripts/lib/config.mjs';
 import { destructiveCommandReason } from '../skills/junis/scripts/lib/destructive.mjs';
-import { KEY_REQUEST_PRESETS, KEY_REQUEST_SCOPES, parseKeyRequestScopes } from '../skills/junis/scripts/lib/kit-tools.mjs';
+import { KEY_REQUEST_CORE_SCOPES, KEY_REQUEST_PRESETS, KEY_REQUEST_SCOPES, parseKeyRequestScopes, reducedKeyRequestScopes } from '../skills/junis/scripts/lib/kit-tools.mjs';
 
 let mock;
 before(async () => {
@@ -292,6 +292,122 @@ describe('a narrower key can be requested through the browser', () => {
     assert.equal(mock.state.keyRequests.size, before, 'no request was started');
     const pasted = await runCli(['login', '--key-stdin', '--scopes', 'read-only'], { env: mock.env(), kitHome, input: `${USER_KEY}\n` });
     assert.equal(pasted.code, 2, '--scopes is a browser option');
+  });
+});
+
+describe('browser login asks for the Actions permissions and degrades to what the platform offers', () => {
+  const ACTIONS = ['actions:read', 'actions:run', 'actions:manage'];
+  // A platform of its own per case, so the order of start requests can be read exactly.
+  async function platform(settings = {}) {
+    const own = await startMockJunis();
+    Object.assign(own.state, settings);
+    return own;
+  }
+  const login = (own, args = []) => runCli(['login', '--browser', '--wait-seconds', '0', ...args], { env: own.env(), kitHome: tempDir() });
+
+  test('the default request is the core list plus the three Actions permissions', () => {
+    assert.equal(KEY_REQUEST_CORE_SCOPES.length, 26);
+    assert.equal(KEY_REQUEST_SCOPES.length, 29);
+    assert.deepEqual(KEY_REQUEST_SCOPES, [...KEY_REQUEST_CORE_SCOPES, ...ACTIONS]);
+    assert.equal(new Set(KEY_REQUEST_SCOPES).size, 29, 'no permission twice');
+  });
+
+  test('a platform that knows them is asked once, for all 29', async () => {
+    const own = await platform();
+    try {
+      const result = await login(own);
+      assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
+      assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES], 'one request, nothing retried');
+      const granted = [...own.state.keyRequests.values()].at(-1).scopes;
+      for (const scope of ACTIONS) assert.ok(granted.includes(scope), scope);
+      assert.equal(granted.length, 29);
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('a platform that does not know them yet gets one retry with the permissions it offers: the key is what it was before', async () => {
+    // Before: adding a permission to the request made an older platform refuse the whole list, and the kit fell
+    // back to the platform's default set, a key without Knowledge, wiki or vault permissions.
+    const own = await platform({ unknownScopes: ACTIONS });
+    try {
+      const result = await login(own);
+      assert.equal(result.code, 0, result.stdout);
+      assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
+      assert.match(result.json.verification_uri, /auth\/api-key\?code=/);
+      assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, KEY_REQUEST_CORE_SCOPES], 'the full list, then the reduced one, and no third request');
+      assert.equal(own.state.keyRequests.size, 1, 'one request is waiting');
+      const granted = [...own.state.keyRequests.values()][0].scopes;
+      assert.deepEqual(granted, KEY_REQUEST_CORE_SCOPES);
+      for (const scope of ['brain:manage', 'wiki:manage', 'secrets:manage']) assert.ok(granted.includes(scope), `${scope} is not lost`);
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('the retry follows the list the platform names, so any other permission it lacks is dropped the same way', async () => {
+    const own = await platform({ unknownScopes: [...ACTIONS, 'wiki:manage'] });
+    try {
+      const result = await login(own);
+      assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
+      const expected = KEY_REQUEST_CORE_SCOPES.filter((scope) => scope !== 'wiki:manage');
+      assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, expected]);
+      assert.deepEqual([...own.state.keyRequests.values()][0].scopes, expected);
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('a refusal that names no offered permissions falls back to the core list, then to the platform defaults', async () => {
+    const quiet = await platform({ unknownScopes: ACTIONS, hideAvailableScopes: true });
+    const older = await platform({ unknownScopes: [...ACTIONS, 'wiki:manage'], hideAvailableScopes: true });
+    try {
+      assert.equal((await login(quiet)).json.status, 'waiting_for_approval');
+      assert.deepEqual(quiet.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, KEY_REQUEST_CORE_SCOPES]);
+      // The core list is refused as well: only then the platform's own defaults, as before.
+      assert.equal((await login(older)).json.status, 'waiting_for_approval');
+      assert.deepEqual(older.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, KEY_REQUEST_CORE_SCOPES, null]);
+      assert.equal([...older.state.keyRequests.values()][0].scopes, null);
+    } finally {
+      await quiet.close();
+      await older.close();
+    }
+  });
+
+  test('a 400 that is not about an unknown permission is not retried with a reduced list', async () => {
+    const own = await platform({ rejectScopes: true });
+    try {
+      const result = await login(own);
+      assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
+      assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, null], 'straight to the platform defaults, as before');
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('permissions asked for by name are never narrowed: an older platform refuses them and nothing is retried', async () => {
+    const own = await platform({ unknownScopes: ACTIONS });
+    try {
+      const refused = await login(own, ['--scopes', 'agents:list,actions:read']);
+      assert.equal(refused.code, 1);
+      assert.equal(refused.json.error, 'bad_scopes');
+      assert.deepEqual(own.state.keyRequestAttempts, [['agents:list', 'actions:read']]);
+      assert.equal(own.state.keyRequests.size, 0, 'no request was started');
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('only the unknown-permission refusal yields a reduced list', () => {
+    const refusal = (detail) => ({ detail });
+    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', unknown_scopes: ACTIONS, available_scopes: [...KEY_REQUEST_CORE_SCOPES, 'users:provision'] })), KEY_REQUEST_CORE_SCOPES, 'the intersection, in the kit\'s order, never a permission the kit did not ask for');
+    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', unknown_scopes: ACTIONS })), KEY_REQUEST_CORE_SCOPES);
+    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', available_scopes: 'everything' })), KEY_REQUEST_CORE_SCOPES, 'a malformed list is ignored');
+    assert.equal(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', available_scopes: KEY_REQUEST_SCOPES })), null, 'nothing narrower to ask for');
+    assert.equal(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', available_scopes: ['users:provision'] })), null, 'an empty intersection is not sent');
+    for (const other of [refusal('Unknown scope'), refusal({ error: 'org_level_only_scopes', available_scopes: KEY_REQUEST_CORE_SCOPES }), refusal({ error: 'empty_scopes' }), {}, null, undefined, 'Bad Request']) {
+      assert.equal(reducedKeyRequestScopes(other), null, JSON.stringify(other));
+    }
   });
 });
 

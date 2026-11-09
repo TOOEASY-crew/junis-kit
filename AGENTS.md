@@ -9,7 +9,7 @@ itself; users of the kit read `README.md`.
 | Path | What it is |
 | --- | --- |
 | `skills/junis/SKILL.md` | The skill. Under 500 lines; routes each job to the reference files it needs. |
-| `skills/junis/references/*.md` | Nineteen reference files, one level deep. Each starts by saying when to read it. |
+| `skills/junis/references/*.md` | Twenty reference files, one level deep. Each starts by saying when to read it. |
 | `skills/junis/scripts/junis.mjs` | The only executable: command line, stdio MCP bridge (`mcp`, `mcp --lazy`) and installer. Node 18+, no dependencies. |
 | `skills/junis/scripts/lib/` | Its modules: argument parser, config, http, error advice, remote MCP client, External API client, bridge, kit tools (including browser login), browser opener, run (job handles), destructive-call rules, lint, JSONC reader, snapshot, doctor, installer, agent catalogue. |
 | `kit.json` | Single source for name, version and descriptions. `scripts/build-manifests.mjs` generates every manifest from it. |

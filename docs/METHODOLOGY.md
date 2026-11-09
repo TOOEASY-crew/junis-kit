@@ -58,7 +58,7 @@ which is what the installer and `doctor` exist for.
 - **Progressive disclosure**: metadata always loaded; body (< 500 lines) on
   trigger; references on demand, one level deep, each saying when to read it,
   with a table of contents when long. The kit's SKILL.md is a router: terms,
-  two ways to act, start-of-session steps, a table to nineteen references,
+  two ways to act, start-of-session steps, a table to twenty references,
   operating rules with their reasons, traps, a report format.
 - **Explain the why** instead of MUST. Rules the agent understands transfer
   to cases the author did not foresee; bare imperatives get rationalised away.

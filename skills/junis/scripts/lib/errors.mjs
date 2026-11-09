@@ -32,7 +32,7 @@ export function explainError(error, profile = resolveProfile()) {
     .filter((scope) => /^[a-z_]+:[a-z_*]+$/.test(scope))
     .join(', ');
   const hints = {
-    insufficient_scopes: `The key lacks a permission${missing ? ` (${missing})` : ''}. The user adds it to the existing key with "Add permissions" at ${loginUrl(profile)}, or runs the browser login again (junis_connect with method "browser"), which requests every permission the kit needs. Only an organization key (jns_live_) cannot be extended: the user creates a new key with the permission ticked and connects again.`,
+    insufficient_scopes: `The key lacks a permission${missing ? ` (${missing})` : ''}. The user adds it to the existing key with "Add permissions" at ${loginUrl(profile)}, or runs the browser login again (junis_connect with method "browser"), which requests every permission the kit uses that this platform offers (a key made before the platform had a permission, such as the Actions ones, lacks it until then). Only an organization key (jns_live_) cannot be extended: the user creates a new key with the permission ticked and connects again.`,
     no_organization: 'No organization was named and the account has no default. Pass organization_id (a UUID from list_organizations).',
     subscription_required: `The account has no active Basic or Pro plan, which every API call requires. The user subscribes at ${profile.web_url}/subscription.`,
     payment_required: `The paying balance is out of credits. Credits are bought at ${profile.web_url}/subscription. If the message says organization credits or billing_role is "member", the organization owner pays and adds them. Schedules stopped for this reason must be enabled again afterwards.`,

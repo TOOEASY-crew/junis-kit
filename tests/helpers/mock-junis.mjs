@@ -16,7 +16,7 @@ const baseCatalogue = JSON.parse(fs.readFileSync(path.join(here, '..', 'fixtures
 export const USER_KEY = 'jns_user_testkey0123456789abcdefghij';
 export const ORG_KEY = 'jns_live_testkey0123456789abcdefghij';
 // Scopes the mock platform knows (a request with any other one is refused like the platform's 400).
-const KNOWN_SCOPES = new Set(['orchestrator:invoke', 'orchestrator:stream', 'sessions:read', 'sessions:messages', 'agents:list', 'agents:invoke', 'organizations:read', 'organizations:manage', 'agents:manage', 'relationships:manage', 'mcp:manage', 'datastores:manage', 'sessions:manage', 'schedules:manage', 'skills:manage', 'composio:manage', 'content:read', 'content:retry', 'rag:upload', 'rag:read', 'rag:delete', 'brain:read', 'brain:manage', 'wiki:read', 'wiki:manage', 'secrets:manage']);
+const KNOWN_SCOPES = new Set(['orchestrator:invoke', 'orchestrator:stream', 'sessions:read', 'sessions:messages', 'agents:list', 'agents:invoke', 'organizations:read', 'organizations:manage', 'agents:manage', 'relationships:manage', 'mcp:manage', 'datastores:manage', 'sessions:manage', 'schedules:manage', 'skills:manage', 'composio:manage', 'content:read', 'content:retry', 'rag:upload', 'rag:read', 'rag:delete', 'brain:read', 'brain:manage', 'wiki:read', 'wiki:manage', 'secrets:manage', 'actions:read', 'actions:run', 'actions:manage']);
 export const ORG_A = '11111111-1111-4111-8111-111111111111';
 export const ORG_B = '22222222-2222-4222-8222-222222222222';
 
@@ -330,13 +330,33 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
   // The platform's key request flow (/api/user/api-keys/device): start, then
   // 202 while pending, the key once after approval (with the verifier), 410 after.
   state.keyRequests = new Map();
+  state.keyRequestAttempts = []; // the scopes of every start request, refused ones included
+  state.unknownScopes = []; // permissions this platform does not know yet (an older deployment)
+  state.hideAvailableScopes = false; // refuse an unknown permission without listing the ones offered
   state.keyResultTtlMs = null; // how long the platform keeps an approved key for collection
   state.keyPollFailures = 0; // answer 503 to this many polls (a rolling deploy)
   async function handleKeyRequest(request, response, url) {
     const route = `${request.method} ${url.pathname.replace('/api/user/api-keys/device', '')}`;
     if (route === 'POST /start') {
       const body = await readBody(request);
-      if (Array.isArray(body.scopes) && (state.rejectScopes || body.scopes.some((scope) => !KNOWN_SCOPES.has(scope)))) return send(response, 400, { detail: 'Unknown scope' });
+      state.keyRequestAttempts.push(body.scopes ?? null);
+      // A 400 that is not about an unknown permission (the platform's other refusals carry a plain message).
+      if (Array.isArray(body.scopes) && state.rejectScopes) return send(response, 400, { detail: 'Unknown scope' });
+      if (Array.isArray(body.scopes)) {
+        // The platform's own refusal of a permission it does not know (scope_validator: 400 invalid_scopes).
+        const offered = [...KNOWN_SCOPES].filter((scope) => !state.unknownScopes.includes(scope));
+        const unknown = body.scopes.filter((scope) => !offered.includes(scope));
+        if (unknown.length) {
+          return send(response, 400, {
+            detail: {
+              error: 'invalid_scopes',
+              message: "Unknown scope(s). Scopes replace the key's full list, so send every scope the key should keep.",
+              unknown_scopes: unknown,
+              ...(state.hideAvailableScopes ? {} : { available_scopes: offered.sort() }),
+            },
+          });
+        }
+      }
       const code = `CODE${state.keyRequests.size + 1}`;
       state.keyRequests.set(code, { status: 'pending', challenge: body.poll_challenge, scopes: body.scopes ?? null, client: body.client_name });
       return send(response, 200, { device_code: code, verification_uri: `https://junis.test/auth/api-key?code=${code}`, expires_in: 600, interval: 1 });

@@ -22,11 +22,17 @@ that needs the user's login, a key for an HTTP API, or the user's own computer.
 | Acts on a person's own account (mail, calendar, drive, social media) | OAuth app, if `list_composio_integrations` has it |
 | Has a bot token or service key and an MCP server | MCP platform |
 | Is a plain HTTP API with a key | Secret plus `custom_api_call` |
+| Is the organization's own system, where an agent must perform a fixed operation (above all a write) that a person approves | An action on an Actions connection ([actions.md](actions.md)) |
 | Is the user's machine, files or browser | Device |
 | Is Slack | See "Slack": chatting in Slack and posting to it are different routes |
 
 When two routes exist, choose by the table, proceed without asking, and state
 the choice in the report.
+
+An Actions connection is not a link and brings an agent no tools by itself: it
+is the address that typed, approved actions call. Its `mcp` kind reuses a
+remote MCP platform registered here for one pinned tool; its `http` and
+`webhook` kinds take organization secrets by name.
 
 ## MCP platforms
 
@@ -262,8 +268,10 @@ lacks permission.
   it, like any other unknown `{cred:…}` form, is sent as literal text and the
   service usually answers 401.
 - References are resolved only inside an API definition block used by
-  `custom_api_call` ([instructions.md](instructions.md)). Values never reach
-  the model and cannot be read back by anyone.
+  `custom_api_call` ([instructions.md](instructions.md)) and in the headers of
+  an Actions connection or action (organization secrets only;
+  [actions.md](actions.md)). Values never reach the model and cannot be read
+  back by anyone.
 - Personal secrets are refused in anonymous conversations on a public widget:
   there is no signed-in user to take them from. An agent that answers widget
   visitors uses organization secrets.

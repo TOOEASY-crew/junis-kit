@@ -3,12 +3,13 @@ name: junis
 description: >-
   Operates the Junis multi-agent platform (junis.ai, 주니스) by conversation:
   connects the account, designs and builds agent squads, configures models,
-  instructions, tools, MCP servers, Composio apps, RAG, Knowledge, skills,
-  schedules, memory and devices, runs squads and reads their results, then
-  diagnoses and improves them. Use when the user mentions Junis, 주니스, a squad
+  instructions, tools, MCP servers, Composio apps, RAG, Knowledge, actions,
+  skills, schedules, memory and devices, runs squads and reads their results,
+  then diagnoses and improves them. Use when the user mentions Junis, 주니스, a squad
   (스쿼드), an orchestrator or sub-agents (에이전트 조직); wants to set up,
   change, run, schedule, monitor, debug or improve AI agents or an agent team;
-  asks to connect a tool, MCP server or OAuth app to a Junis agent; asks why a
+  asks to connect a tool, MCP server or OAuth app to a Junis agent; asks to run,
+  re-run or check an Action (액션) or one waiting for approval; asks why a
   Junis run failed, returned nothing or cost too much; wants to put a squad on a
   website, a public page or Slack; or asks for something a Junis squad should do
   for them, even when Junis is not named but a Junis tool or organization is the
@@ -66,7 +67,8 @@ Use whichever is present. They reach the same platform with the same stored key.
 | Ask the organization's Knowledge (search, an answer the platform writes, the planner's answer for multi-fact questions, or the evidence bundle to answer with your own model) | `knowledge_search`, `knowledge_answer`, `knowledge_ask` (404 when the planner is off for the organization: use `knowledge_answer`), `knowledge_evidence` (with `organization_id`) | `api GET /brain/search?q=…` |
 | Ask a connected database, or inspect its semantic layer (tables for a question, one table's columns, coverage by approved terms/templates, metric definitions, map versions, supported database kinds) | `knowledge_db_answerable` → `knowledge_db_search` → `knowledge_db_describe` → `knowledge_db_ask` (an owner or admin key with `brain:manage`; `feature_disabled` until Junis switches it on); `knowledge_metrics`, `knowledge_metric_candidates`, `knowledge_metric_create` (draft only), `knowledge_map_versions`, `knowledge_db_connector_kinds` (with `organization_id`) | `api GET /brain/db/state` |
 | Put data into Knowledge (documents or web pages; the knowledge map and graph build automatically), watch the ingest, re-run a failed one | `knowledge_add_file_source`, `knowledge_add_url_source`, `knowledge_sources` / `knowledge_source`, `knowledge_source_retry` (with `organization_id`; databases and partner APIs: next row) | `tools call knowledge_add_file_source --json '{"organization_id":"<uuid>","files":[{"filename":"a.pdf","content":"@base64:./a.pdf"}]}'` |
-| Build or change the knowledge map, read the graph, import a graph, manage sources, connect databases and partner APIs, manage query templates/glossary/checks | `knowledge_map_*`, `knowledge_graph_*`, `knowledge_source_*`, `knowledge_add_postgres_source` / `knowledge_db_connect` / `knowledge_add_api_source` (secrets as `*_secret_name` or `@env:VAR`), `knowledge_db_*`, `knowledge_template_*`, `knowledge_glossary*` (see references/knowledge.md) | `tools call knowledge_ingest_and_wait --json '{"organization_id":"<uuid>","url":"https://…"}'` |
+| Build or change the knowledge map, read the graph (one entity's surroundings, or a whole kind at once with `knowledge_graph_around`), draft verified graph questions, import a graph, manage sources, connect databases and partner APIs, manage query templates/glossary/checks | `knowledge_map_*`, `knowledge_graph_*`, `knowledge_source_*`, `knowledge_add_postgres_source` / `knowledge_db_connect` / `knowledge_add_api_source` (secrets as `*_secret_name` or `@env:VAR`), `knowledge_db_*`, `knowledge_template_*`, `knowledge_glossary*` (see references/knowledge.md) | `tools call knowledge_ingest_and_wait --json '{"organization_id":"<uuid>","url":"https://…"}'` |
+| Let agents act in the organization's own systems through typed actions a person approves: connections, drafts, dry runs, assignment to agents, runs and the run log (approving a draft or a waiting run is the user's step in the web app; a `simulate` connection tries the flow with nothing connected) | `actions_overview` → `actions_connection_create` → `actions_draft_create` → `actions_dry_run` → the user approves → `actions_agent_set` → `actions_run`, `actions_runs` (keys need `actions:read`, `actions:manage`, `actions:run`; see references/actions.md) | `api GET /actions/overview` |
 | Endpoints without a tool (Knowledge management, vault, schedule runs, wiki, partner accounts) | `junis_api` (`DELETE`, `PUT`, `PATCH` and POSTs that replace data need `confirmed=true`; the same calls on the command line stop with `needs_confirmation` until repeated with `--yes` after the user agreed) | `api <METHOD> <path>` |
 | Keep a whole squad as one file: export, plan against the live organization, apply | `squad_export` → `squad_plan` (with `document=@squad.json`) → `squad_apply` with the `plan_id` (see references/build-and-verify.md) | `tools call squad_plan document=@squad.json organization_id=<uuid>` |
 | See what an agent actually runs with; roll an agent back; narrow or confirm its tools | `get_agent_effective_config`, `list_agent_versions` → `preview_agent_rollback` → `rollback_agent`, `get_agent_tool_access` / `set_agent_enabled_tools` / `set_agent_confirmation_tools`, `get_tool_safety` (see references/improving.md) | `tools call get_agent_effective_config agent_id=<uuid> organization_id=<uuid>` |
@@ -108,6 +110,7 @@ need two to four rows.
 | Built-in abilities: search, files, code, media, judging, simulation, loops | [references/agent-tools.md](references/agent-tools.md) |
 | MCP server, Slack, OAuth app, secret, the user's computer, outside skills | [references/connections.md](references/connections.md) |
 | Answer from documents or data (Knowledge or RAG) | [references/knowledge.md](references/knowledge.md) |
+| An agent that acts in the user's own system (ticket, order, event): approved actions, their runs and approvals | [references/actions.md](references/actions.md) |
 | Personality, user memory, shared wiki | [references/memory-and-identity.md](references/memory-and-identity.md) |
 | Timetable, run now, scheduled results | [references/schedules.md](references/schedules.md) |
 | Send a request, follow or stop it, read past runs, start runs from GitHub or CI events | [references/running.md](references/running.md) |
@@ -128,6 +131,9 @@ Common combinations, with the trap each adds:
   "Shared publicly"; a run from here runs as the user, not as a visitor.
 - **Knowledge for another app:** knowledge → onboarding (permissions) →
   partner-accounts (base URL and header). Preview a preset before applying it.
+- **An agent that writes to the user's system:** actions → connections (the
+  secret, by name) → instructions (when to call `action_<name>`) → user-steps.
+  Nothing is live until a person approves the draft in the web app.
 - **The user's computer on a timetable:** connections (the user's computer) →
   schedules. An offline machine is skipped silently.
 - **A cheaper squad:** improving → models. The kit cannot see spending; the
@@ -147,8 +153,10 @@ Junis grows faster than this text, so nothing here is a closed list.
 - Inside Junis, abilities are added by conversation too: skills
   (`create_skill`, `import_skill_from_github`), HTTP APIs with a registered
   secret (`custom_api_call`), MCP platforms, agents used as tools by other
-  agents (`agent_tool:<name>`), and squads calling each other
-  (`call_another_squad`). See [references/connections.md](references/connections.md).
+  agents (`agent_tool:<name>`), squads calling each other
+  (`call_another_squad`), and approved actions on the organization's own
+  systems (`action_<name>`). See [references/connections.md](references/connections.md)
+  and [references/actions.md](references/actions.md).
 - The hosted server also has a built-in guide (`get_guide`) and tool
   descriptions. Where they disagree with this skill, follow this skill: its
   rules are checked against the platform's code.
@@ -233,6 +241,8 @@ Each rule exists because breaking it has cost real users time or money.
 | Same schedule or agent name reused | Agent names are checked on create and rename, including names that become the same after clean-up (spaces, hyphens, brackets). A schedule renamed to a taken name fails with a 500. |
 | Agent name with spaces, hyphens or brackets (`news-collector`) | Use letters, digits and underscores (`NewsCollector`), whatever a tool description suggests. Other characters become underscores at run time and round brackets vanish with their contents: `agent_tool:<stored name>` still resolves, but the model sees and must call `news_collector`, so routing rules and hand-over targets written the other way no longer match. |
 | A change to an MCP platform (update, toggle, delete) or a new credential | Agents already built keep the old tools for up to 30 idle minutes. Call `link_agent_mcp` again for each linked agent (it is idempotent and reloads it) and test in a new session. |
+| An action run that comes back `awaiting_approval`, `executing` or `unknown` | Never send it again. The first is waiting for a person in the web app, the second is being sent now, and the third may already have happened in the outside system. Report it and follow the run by its id ([references/actions.md](references/actions.md)). |
+| A drafted action reported as ready | A draft does nothing. Only a person approves it, in the web app; say "drafted, waiting for your approval" until `actions_get` shows `approved`. |
 | Stored credentials shown to the user | `get_mcp_platform` masks values; `reveal_secrets=true` and a raw `junis_api GET` of the platform without `reveal=false` return them in plain text (the kit asks first). Never repeat a value; name the keys only. |
 
 ## Reporting to the user
@@ -265,3 +275,4 @@ versions, compliance) is in [references/user-steps.md](references/user-steps.md)
 | Put the web app in the right organization (before any page below) | `https://junis.ai/chat?join=<slug>` |
 | Authorize an OAuth app (Gmail, Drive, Instagram, …) | `https://junis.ai/team/integrations` |
 | Register a service key or secret, enter MCP credentials | `https://junis.ai/team/mcp-skills` |
+| Approve a drafted action, or an action run that is waiting | `https://junis.ai/team/actions` |

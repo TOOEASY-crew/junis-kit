@@ -164,7 +164,7 @@ describe('reference files', () => {
       'admin', 'admin/api-keys', 'admin/audit', 'admin/dashboard', 'admin/schedules', 'auth/api-key', 'auth/device', 'chat',
       'connect', 'content', 'embed', 'login', 'memory', 'memory/edit', 'onboarding', 'privacy', 'publish', 'quick-actions',
       'refund', 'settings/api-keys', 'settings/organization', 'shared', 'showcase', 'slack', 'slack/success', 'subscription',
-      'team', 'team/agent-proposals', 'team/agent-versions', 'team/audit', 'team/compliance', 'team/content', 'team/devices',
+      'team', 'team/actions', 'team/agent-proposals', 'team/agent-versions', 'team/audit', 'team/compliance', 'team/content', 'team/devices',
       'team/integrations', 'team/knowledge', 'team/knowledge/graph', 'team/mcp-skills', 'team/members', 'team/orchestration',
       'team/organizations', 'team/public', 'team/rag-knowledge', 'team/security-incidents', 'team/simulations', 'team/skills',
       'team/soul', 'team/task-planning', 'team/tools-guide', 'team/wiki', 'terms', 'usage',

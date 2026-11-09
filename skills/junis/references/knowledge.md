@@ -58,7 +58,8 @@ owner or admin key with `brain:manage`; `skipped` / `feature_disabled` until Jun
 enables it for the organization, which it does on request).
 `knowledge_metrics` / `knowledge_metric_candidates` / `knowledge_metric_create` read
 and draft metric definitions (people approve them in the web app),
-`knowledge_map_versions` lists knowledge-map versions (rollback is web-only), and
+`knowledge_map_versions` lists knowledge-map versions (rollback is web-only; with
+`compare_version` it shows what changed from that version to the current map), and
 `knowledge_db_connector_kinds` shows which database kinds the platform can connect
 (`oracle`, `mysql`, `mssql`, `tibero`; Tibero's driver is not installed, so it answers
 400; 404 `feature_disabled` means connectors are off for this organization).
@@ -80,6 +81,10 @@ Every Knowledge endpoint of the External API is also a tool:
   `knowledge_graph_path`, `knowledge_graph_what_if`, `knowledge_graph_subgraph`, `knowledge_graph_documents`,
   `knowledge_graph_snapshot`, `knowledge_links`, `knowledge_graph_near_misses`, `knowledge_evidence_chunk`;
   an existing graph goes in with `knowledge_graph_preview` → `knowledge_graph_import`.
+- Set questions over the graph (no model call; off until an owner or admin switches on "Set-level
+  graph questions" on the Knowledge page): `knowledge_graph_around`, and verified graph questions `knowledge_graph_templates` /
+  `knowledge_graph_template_create` (draft only) / `knowledge_graph_template_test`
+  ("Set questions and verified graph questions" below).
 - Sources: `knowledge_report`, `knowledge_source_coverage`, design notes get/set, CSV/XLSX table
   mapping get/preview/set, `knowledge_source_delete` (destructive — confirm first).
 - Connections: `knowledge_add_postgres_source`, `knowledge_db_connect` (Oracle · MySQL · SQL Server ·
@@ -112,7 +117,7 @@ Every Knowledge endpoint of the External API is also a tool:
   (json, ossie or dbt) / `knowledge_glossary_import_preview` → `knowledge_glossary_import` (needs the
   preview's `content_hash`), `knowledge_sql_traces` (shape and status of queries, no values; up to 180
   days, 500 rows).
-Approvals — template/glossary/metric status, map rollback, relation decisions, AI glossary drafts —
+Approvals — template/glossary/metric status, verified graph questions, map rollback, relation decisions, AI glossary drafts —
 are done by people in the web app; they have no tool on purpose.
 
 Build Knowledge from scratch with the kit: pick a preset (`knowledge_map_presets` → preview → apply)
@@ -129,7 +134,12 @@ Knowledge is on for every organization. `GET /brain/sources` returns
 store, drafting glossary terms from a database, approving metrics and
 templates, rolling back the knowledge map, renaming or removing kinds in the
 knowledge map, resolving review items, Rebuild graph, marking a source "Shared
-publicly" for the website widget, recording audio. Connecting databases and
+publicly" for the website widget, recording audio, the "Set-level graph
+questions" switch, approving verified graph questions, editing a kind's
+property definitions, "Restricted types and relations" (hide a kind or a relation from
+everyone but chosen groups; needs access control switched on) and "Let members
+browse knowledge" (a read-only page for members). None of these has a tool:
+send the user to that page. Connecting databases and
 partner APIs, and adding to the map, work from the kit.
 
 Once one source is ready, the orchestrator gets the Knowledge tools by itself:
@@ -138,7 +148,8 @@ Once one source is ready, the orchestrator gets the Knowledge tools by itself:
 per turn), `brain_ask` where the planner is on, and with a ready database
 source `brain_sql` (at most 200 rows per call; absent when the organization
 allows approved templates only), `brain_query` (approved templates) and
-`brain_db_schema` (schemas over about 40 tables). Do not list any of them in an agent's `tools`: on the orchestrator
+`brain_db_schema` (schemas over about 40 tables); where "Set-level graph questions" is switched on, `brain_graph_around`,
+and `brain_graph_query` once a verified graph question is approved. Do not list any of them in an agent's `tools`: on the orchestrator
 a listed name loads even before Knowledge is ready, and a sub-agent gets it
 without its usage note. Route knowledge questions through the orchestrator.
 After a hand-over the session stays with that sub-agent, which has no
@@ -167,7 +178,9 @@ Use `junis_api` or the `api` command. Paths are under `/brain`.
 | Trace a citation to its text and page | `GET /brain/evidence/<chunk_id>` |
 | Entities | `GET /brain/entities?q=…`, or `?type=Equipment&limit=200` for up to 200 entities of a kind (for more, `/brain/graph/snapshot?types=Equipment`); `?entity_id=<id>` adds that entity's relations and mentions (read `entity`, not `items`) |
 | How two things are connected | `GET /brain/graph/path?from=…&to=…` (`max_hops` up to 10, `direction`, `predicates`, `as_of`) |
-| What surrounds one thing | `GET /brain/graph/neighbors?name=…` (`hops` 1–4, default 2; `direction` `any`, `downstream`, `upstream`, `out`, `in`; `predicates`; `limit` up to 200; `as_of`; `exclude=CL-102,CL-103` does not expand past those tags, for comparing a valve open and closed) |
+| What surrounds one thing | `GET /brain/graph/neighbors?name=…` (`hops` 1–4, default 2; `direction` `any`, `downstream`, `upstream`, `out`, `in`; `predicates`; `limit` up to 200; `as_of`; `exclude=CL-102,CL-103` does not expand past those tags, for comparing a valve open and closed). An edge carries `qualifiers`, the values stated on that relation (for example `since: 2024-03`), only where the knowledge map declares properties on the relation and a value was read |
+| A whole kind at once: which targets it reaches through one relation, and which of its entities have none | `GET /brain/graph/around?entity_type=Line&predicate=carries` (`knowledge_graph_around`; below) |
+| Verified graph questions | `GET /brain/graph/templates`; `POST /brain/graph/templates` saves a draft; `POST /brain/graph/templates/<id>/test` with `{"params": {…}}` runs one (below) |
 | Documents that mention a thing | `GET /brain/graph/documents?name=…` (`hops` 0–3, default 1; `predicates`, default `contains,on_line`; `limit` up to 100) |
 | What is not yet connected | `GET /brain/links?unlinked_only=true` |
 | Overview without a model call | `GET /brain/overview` (`q=<topic>` narrows it to a topic; `entities`, `hubs`, `docs` up to 50 each). The same material `/brain/answer` uses with `"scope": "global"` |
@@ -184,6 +197,58 @@ Use `junis_api` or the `api` command. Paths are under `/brain`.
 | JSON API source: apply a removal the last sync held back (review item `api_mass_removal_blocked`) | `POST /brain/sources/<id>/retry?confirm_removal=true`, once, after the user agrees |
 | Import a prepared graph | `POST /brain/graph/preview` to check, then `POST /brain/graph` with `{"payload": {…}, "external_key": "<stable id>"}` (2,000 entities and 5,000 relations per call); `"mode": "replace"` re-imports one drawing without duplicates (ask the user first) |
 | Token for embedding the graph on a website | `POST /brain/embed-token` with `{"embed_domain": "https://site"}` → `embed_url` (details in [publishing.md](publishing.md)) |
+
+### Set questions and verified graph questions
+
+For a question about every entity of one kind ("which lines carry the most
+equipment", "which suppliers have no contract"), call
+`knowledge_graph_around(entity_type, predicate)` once instead of looping
+`knowledge_graph_neighbors` over each entity. Take both names from
+`knowledge_map`; an unknown kind, relation or attribute answers 422 with the
+names that exist.
+
+- Arguments: `direction` `forward` (the kind is the subject of the relation,
+  the default) or `reverse`; `name_contains` narrows the set by name;
+  `attribute` with `value` narrows it by one declared property (422
+  `attribute_needs_value` without the value); `limit` 1 to 50 targets,
+  default 20.
+- Result: `sources_total`, `sources_linked`, `sources_unlinked` with up to ten
+  `unlinked_examples`, `top_sources` (starting entities with the most links:
+  `name`, `count`), `targets` (`name`, `type`, `count`, most linked first),
+  `truncated` and `citations`.
+- Read the two notes before reporting. `direction_note` says the knowledge
+  map declares the relation the other way round and the server read it from
+  that side: the numbers are right, describe the direction as the note does.
+  `hint` says nothing is linked because the kind is on neither side of that
+  relation. That is not "no such relations exist": check the kind and the
+  relation in `knowledge_map` and ask again before answering "none".
+- 404 `feature_disabled`: the "Set-level graph questions" switch is off (it
+  is off by default). Do not retry. Ask the user to have an owner or admin
+  turn it on at `https://junis.ai/team/knowledge` (Team Management → Ontology
+  Knowledge); the organization does it itself and there is no tool for the
+  switch. Meanwhile a small set can be answered with
+  `knowledge_graph_neighbors` per entity.
+
+A verified graph question is one such traversal saved under a name, with
+parameters, that a person has approved. The same switch gates it.
+
+1. `knowledge_graph_template_create(template_key, title, entity_type,
+   predicate, …)` saves a draft. A field is fixed (`value`,
+   `name_contains`) or filled by the caller at run time (`value_param`,
+   `name_param` with a parameter name); giving both for one field is an
+   error. Write `description` and up to five `question_examples` for the
+   agent that will choose it. 422 `invalid_template` lists every problem and
+   saves nothing. Saving an existing key makes its next version, again a
+   draft.
+2. `knowledge_graph_template_test(template_id, params)` runs it, drafts
+   included, and changes nothing. `bad_params` names what is expected;
+   `template_needs_check` means the map no longer declares its kind, relation
+   or attribute, so a new version must be saved and approved.
+3. A person approves it: `https://junis.ai/team/knowledge` → "Verified graph
+   questions". No tool approves. Only then does the orchestrator get it,
+   through its `brain_graph_query` tool. `knowledge_graph_templates` lists
+   each key's newest version with its `status` (`draft`, `approved`,
+   `needs_check`, `retired`). Never report a draft as available to agents.
 
 ### Connected databases: definitions, verified queries, checks
 
@@ -243,6 +308,22 @@ connects and rejects those items on every sync. So check first, then fit:
 | Rename onto what the map has | `"rename": {"types": {"Pump": "Equipment"}, "predicates": {"flowsTo": "feeds"}}` |
 | Add to the map, if `room` allows | `POST /brain/ontology/extend` with `{"entity_types": [{"name": "Supplier", "description": "…", "properties": ["country"]}], "predicates": [{"name": "supplied_by", "src": "Equipment", "dst": "Supplier", "cardinality": "many"}]}`. Adds only (new kinds and relations, properties a kind lacks); never changes an entry. Over a limit or an unusable name: 422, nothing written. `changed: false`: nothing was new. Use these field names (`properties`, `src`, `dst`) through `knowledge_map_extend` too, whatever its description says: other names are dropped and the relation is saved with both ends open |
 | Leave out what does not fit | `"on_unknown": "skip"`; the response counts what was left out. Tell the user |
+
+Property definitions. A kind may declare `property_defs` for its properties
+(`knowledge_map` shows them). They are part of the knowledge map and are
+saved with the whole map: an owner or admin edits them in the map editor at
+`https://junis.ai/team/knowledge`, in each kind's details. No tool here saves
+a whole map, and `knowledge_map_extend` only adds kinds, relations and
+properties, so put this step in the user's part. They check and count; they
+never change a value:
+
+- `type`, `length` and `required` are compared with each value read at ingest
+  and the mismatches are only counted in the ingest report. Placeholders such
+  as TBD or N/A are not counted as values.
+- `key: true` opens a `key_conflict` review item when two entities share a
+  value of that property. Nothing is merged: a person resolves it in the
+  review queue.
+- `unit` is stored with the values kept per source.
 
 Presets. The only preset is `pid` (plant drawings plus operating manuals).
 

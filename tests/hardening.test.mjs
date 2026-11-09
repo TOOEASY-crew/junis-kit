@@ -203,13 +203,16 @@ describe('error hints repeat nothing but scope names', () => {
 describe('one destructive list for annotations and the hook', () => {
   test('annotations follow the shared list', () => {
     for (const name of ['delete_agent', 'unlink_agent_mcp', 'unassign_skill', 'write_skill_file', 'switch_organization', 'update_soul_content', 'apply_team_changes', 'update_mcp_platform',
-      'rollback_agent', 'set_agent_enabled_tools', 'set_agent_confirmation_tools', 'set_tool_safety', 'set_flag_org_opt_out', 'squad_apply']) {
+      'rollback_agent', 'set_agent_enabled_tools', 'set_agent_confirmation_tools', 'set_tool_safety', 'set_flag_org_opt_out', 'squad_apply',
+      'actions_run', 'actions_agent_set', 'actions_connection_update', 'actions_connection_delete', 'actions_draft_delete', 'actions_draft_update', 'actions_import_openapi']) {
       assert.equal(deriveAnnotations(name).destructiveHint, true, name);
       assert.equal(isDestructiveTool(name), true, name);
     }
-    for (const name of ['create_agent', 'update_agent', 'patch_agent_instruction', 'toggle_mcp_active', 'link_agent_mcp']) {
+    for (const name of ['create_agent', 'update_agent', 'patch_agent_instruction', 'toggle_mcp_active', 'link_agent_mcp',
+      'actions_connection_create', 'actions_draft_create', 'actions_dry_run', 'actions_import_openapi_preview']) {
       assert.equal(deriveAnnotations(name).destructiveHint, false, name);
     }
+    assert.equal(deriveAnnotations('actions_run').openWorldHint, true, 'an action run reaches a system outside Junis');
     assert.equal(deriveAnnotations('list_agents').readOnlyHint, true);
   });
 

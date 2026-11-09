@@ -21,6 +21,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function toolTimeoutMs(name) {
   if (LONG_RUNNING_TOOLS.has(name)) return 660_000;
+  // The platform holds an action run open while it executes (up to three attempts of up to 120 s each).
+  // Giving up earlier would report a timeout for a call that is still acting in the outside system.
+  if (name === 'actions_run') return 420_000;
   if (/^(import_|upload_|create_datastore|delete_datastore)/.test(name)) return 300_000;
   return 120_000;
 }
@@ -201,7 +204,7 @@ export function unwrapToolResult(result) {
 }
 
 export const READ_PREFIX = /^(list_|get_)/;
-const OPEN_WORLD = /^(send_message|chat_completion|import_skill_|retry_content)/;
+const OPEN_WORLD = /^(send_message|chat_completion|import_skill_|retry_content|actions_run$)/;
 
 // The bridge serves the hosted server's own annotations when a tool has them
 // (it marks every tool that changes or deletes data destructive). For a tool

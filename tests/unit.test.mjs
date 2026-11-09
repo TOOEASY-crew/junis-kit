@@ -8,7 +8,7 @@ import { maskKey, normalizeUrl } from '../skills/junis/scripts/lib/config.mjs';
 import { KitError, httpRequest, parseSseMessages } from '../skills/junis/scripts/lib/http.mjs';
 import { readConfig, stripJsonComments } from '../skills/junis/scripts/lib/jsonc.mjs';
 import { lintInstruction } from '../skills/junis/scripts/lib/lint.mjs';
-import { categorize, deriveAnnotations, unwrapToolResult } from '../skills/junis/scripts/lib/mcp-remote.mjs';
+import { categorize, deriveAnnotations, toolTimeoutMs, unwrapToolResult } from '../skills/junis/scripts/lib/mcp-remote.mjs';
 
 const errors = (text, options) => lintInstruction(text, options).findings.filter((finding) => finding.level === 'error');
 
@@ -200,6 +200,9 @@ describe('tool metadata', () => {
     assert.equal(deriveAnnotations('apply_team_changes').destructiveHint, true);
     assert.equal(deriveAnnotations('patch_agent_instruction').idempotentHint, true);
     assert.equal(deriveAnnotations('send_message').openWorldHint, true);
+    // An action run is held open while the platform executes: the kit must outwait it, or a timeout invites a second run.
+    assert.ok(toolTimeoutMs('actions_run') >= 400_000);
+    assert.equal(toolTimeoutMs('actions_runs'), toolTimeoutMs('list_agents'));
   });
 
   test('categories group related tools', () => {

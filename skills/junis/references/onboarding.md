@@ -25,9 +25,11 @@ this works in remote shells and containers too.
 2. Start the request: tool `junis_connect` with `method: "browser"`, or command
    `login --browser`. The result has a link (`verification_uri`); give it to
    the user. In a terminal the command also opens it.
-3. The user opens the link, signs in, checks the 26 permissions asked for
+3. The user opens the link, signs in, checks the 29 permissions asked for
    (every permission this skill uses: the web "Coding agents" preset minus two
-   unused admin scopes), presses Approve and comes back.
+   unused admin scopes), presses Approve and comes back. A platform that does
+   not offer one of them yet is asked again for the ones it has, so the page
+   then shows fewer.
 4. Finish: call `junis_connect` with `method: "browser"` again. After it
    returns the link, the tool keeps waiting in the background and stores the
    key the moment the user approves; the next call reports the result, waiting
@@ -58,8 +60,9 @@ A narrower key: `login --browser --scopes read-only` asks only for reading
 (sessions, agents, organizations, content, RAG, Knowledge and wiki reads),
 `--scopes operator` adds running squads and reading their results, and a
 comma-separated list of permission names asks for exactly those. Without
-`--scopes` the request asks for every permission (the default; building needs
-it). A request the platform refuses is an error, never widened. The clipboard
+`--scopes` the request asks for every permission the skill uses (the default;
+building needs it), less any the platform does not offer yet. A named request
+the platform refuses is an error, never widened or narrowed. The clipboard
 route has no such option: the user picks the permissions when creating the key
 on the API keys page, and `JUNIS_API_KEY` works with a key of any width.
 
@@ -91,9 +94,9 @@ revoke it on the API keys page and create a new one.
 | Organization-level | `jns_live_` | One organization. Made by an owner or admin at `https://junis.ai/admin/dashboard` → API Keys. By default it only runs agents and reads sessions; management permissions can be picked when it is created. Partner permissions (accounts for another app's users) exist only on these keys. It works in its own organization only. |
 
 A key from browser login or the "Coding agents (recommended)" preset holds
-every permission below. A key made with the default permissions covers
-building, running, schedules, skills, MCP, Composio and RAG, and needs these
-added for four more areas:
+every permission below that the platform offered when it was made. A key made
+with the default permissions covers building, running, schedules, skills, MCP,
+Composio and RAG, and needs these added for five more areas:
 
 | Area | Permission to add |
 | --- | --- |
@@ -101,6 +104,7 @@ added for four more areas:
 | The user's own credential vault | `secrets:manage` |
 | Deleting RAG documents (`delete_datastore_file`, `DELETE /rag/...`) | `rag:delete` |
 | The organization wiki through the API | `wiki:read`, `wiki:manage` |
+| Actions ([actions.md](actions.md)) | `actions:read`, `actions:manage` for connections, drafts and assignment, `actions:run` to run. Never part of any default; a key made before Actions existed lacks them too. Reading and managing need an owner's or admin's key; a member's key runs only the actions whose definition lists `MEMBER` in a roles rule |
 
 To add a permission, the user presses "Add permissions" next to the key on the
 API keys page, or connects again with browser login. Permissions can be added
@@ -144,7 +148,7 @@ in each. Building and managing need the role OWNER or ADMIN.
 | 401, "Invalid or expired API key" | Key revoked, expired (keys last one year) or mistyped | Connect again (browser login makes a new key). |
 | 403 `subscription_required`, `no_subscription`, `invalid_plan` | No active Basic or Pro plan | The user subscribes at `https://junis.ai/subscription`. Then retry. |
 | 402 `insufficient_credits` | The paying balance is empty. Credits belong to people: by default the organization owner pays for everyone | Credits are bought at `https://junis.ai/subscription`. "Organization credits are insufficient" or `billing_role: member` means the owner must add them. Schedules switched off for this reason must be enabled again. |
-| 403 `insufficient_scopes` | The key lacks a permission; the message lists `missing_scopes` | Personal key: the user adds them ("Add permissions", above) or connects again with browser login. Organization key: an owner or admin makes a new one with those permissions picked (it cannot be extended). |
+| 403 `insufficient_scopes` | The key lacks a permission; the message lists `missing_scopes` | Personal key: the user adds them ("Add permissions", above) or connects again with browser login (it asks for every permission the skill uses that the platform offers). Organization key: an owner or admin makes a new one with those permissions picked (it cannot be extended). |
 | 403 "Organization admin or owner access required" | The user is a MEMBER there | An owner or admin changes the role at `https://junis.ai/team/members`, or pick another organization. |
 | 403 "You don't have access to this organization" | The UUID is not an organization this key's user belongs to | Resolve the id with `list_organizations`. (A name or slug is refused earlier as `bad_organization_id`.) |
 | 403 `email_domain_not_allowed` | The organization restricts member email domains | An owner or admin allows the domain at `https://junis.ai/admin/dashboard` → Settings. |

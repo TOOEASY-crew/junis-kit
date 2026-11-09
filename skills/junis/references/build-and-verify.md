@@ -164,6 +164,7 @@ Connections
 - [ ] Linked MCP platforms appear under `mcp_platforms` in `get_agent`, and were activated with `is_active=true`.
 - [ ] `get_agent_composio_status` reports what is still missing.
 - [ ] No agent has `direct_api_call` unless the user asked for free-form HTTP.
+- [ ] Every action an agent relies on is under `active` in `actions_agent_get` (assigned and approved). A draft is not a tool ([actions.md](actions.md)).
 
 Instructions
 - [ ] The brace check passes for every instruction.
@@ -221,6 +222,7 @@ these categories and name each item with its link, or write "nothing":
 5. Computer to connect
 6. Subscription or credits
 7. Schedules to confirm (time and recipients)
+8. Actions to approve (each draft, and each run that is waiting)
 
 ## Undoing a change
 
@@ -268,7 +270,13 @@ A whole squad (a root agent and its sub-agent tree) can live in one
    complete lists (order of `sub_agents` is the run order). `composio`, when
    present, must name every connected app of that agent exactly (it sets their
    tool lists; the plan rejects a list that leaves one out or names one that
-   is not connected), so leave the key out to leave the apps alone. Agents
+   is not connected), so leave the key out to leave the apps alone.
+   `actions` (exported only for agents that have some) is the complete list
+   of action names assigned to the agent: an empty list removes them all, a
+   name that does not exist is a plan error, and one not approved yet is a
+   warning, since it becomes a tool only after a person approves it. Action
+   definitions and their connections are not in the file
+   ([actions.md](actions.md)). Agents
    missing from the file are never changed or deleted. A document holds at
    most 60 agents, 10 levels deep.
 3. `squad_plan` with `document=@squad.json` → read `errors` (fix them),

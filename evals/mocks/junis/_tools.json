@@ -4035,6 +4035,967 @@
    },
    "name": "get_guide",
    "title": "Read platform guide"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Actions overview (enabled, counts, pending approvals)"
+   },
+   "description": "Whether Actions are on for the organization and how much exists: {enabled, connections, actions: {draft, approved, needs_check, disabled},\npending_approvals}. Start here. `enabled: false` (counts all zero) means Actions are switched off: every other actions_* tool then\nanswers 404 feature_disabled until a Junis administrator turns the feature on. Read-only. Scope actions:read (owner/admin key).\n\nAn action is a typed operation on an outside system (an HTTP API, a signed webhook, a tool of a registered MCP server, or a\nsimulation that sends nothing). Lifecycle: connection → draft → a person approves the draft in the web app (Team → Actions) →\nassign it to an agent (actions_agent_set) or run it (actions_run).",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it: when omitted, the call acts in the key's default organization."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_overview",
+   "title": "Actions overview (enabled, counts, pending approvals)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List action connections"
+   },
+   "description": "List the organization's action connections — the outside systems actions can reach: {items: [{id, name, kind, config,\nis_active, …}]}. `config` holds addresses and Org Key names only, never secret values. Read-only. Scope actions:read.",
+   "inputSchema": {
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_connections",
+   "title": "List action connections"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List action definitions (newest version per name)"
+   },
+   "description": "List action definitions, one row per action name showing its newest version: {items: [{id, name, version, status, title,\ndescription, params_schema, executor, effect, risk, tool_name, connection, …}]}. Filters apply to that newest version, so an\naction whose newest version is a draft is listed as `draft` even when an older version is still approved and in use — use\nactions_get for the full picture of one action. Read-only. Scope actions:read.",
+   "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+     "status": {
+      "default": "",
+      "type": "string",
+      "description": "\"draft\", \"approved\", \"needs_check\" or \"disabled\". Empty = all. needs_check = the MCP tool behind the action changed\nafter it was approved, so agents and runs stopped using it until a person approves it again in the web app or disables it."
+     },
+     "target_type": {
+      "default": "",
+      "type": "string",
+      "description": "Only actions whose target is this Knowledge map kind (exact match), e.g. \"Equipment\"."
+     },
+     "name": {
+      "default": "",
+      "type": "string",
+      "description": "Only the action with exactly this name."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "type": "object"
+   },
+   "name": "actions_list",
+   "title": "List action definitions (newest version per name)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get one action with its versions"
+   },
+   "description": "One action by name with every version: {name, latest, approved, versions}. `approved` is the version agents and actions_run\nuse right now (null when none is approved); `latest` may be a newer draft still waiting for a person. Each version carries its\n`id` (the definition_id for actions_draft_update, actions_draft_delete and actions_dry_run). Read-only. Scope actions:read.",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Action name (snake_case, as in actions_list)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_get",
+   "title": "Get one action with its versions"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List action runs"
+   },
+   "description": "The run log, newest first: {items: [{run_id, status, action, version, summary, actor_kind, agent_name, args_preview,\nhttp_status, output, error, approvals_needed, expires_at, created_at, …}]}. Every run is recorded, including failed, rejected and\nexpired ones. Use it to find a run you are unsure about before running anything again. Read-only. Scope actions:read.",
+   "inputSchema": {
+    "properties": {
+     "state": {
+      "default": "",
+      "type": "string",
+      "description": "One of awaiting_approval (waiting for a person), executing (approvals complete, running now), succeeded, failed,\nunknown (sent, then no answer or interrupted — the target may have processed it), rejected, expired. Empty = all."
+     },
+     "action": {
+      "default": "",
+      "type": "string",
+      "description": "Only runs of this action name."
+     },
+     "target_entity_id": {
+      "default": "",
+      "type": "string",
+      "description": "Only runs whose target is this Knowledge entity id."
+     },
+     "limit": {
+      "default": 50,
+      "type": "integer",
+      "description": "1–200 rows (default 50)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_runs",
+   "title": "List action runs"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get one action run"
+   },
+   "description": "One run: status, summary, who asked, approvals so far and how many are still needed, the target system's status code and\noutput preview, or the error. Use it to follow a run that came back `awaiting_approval`. Read-only. Scope actions:read.",
+   "inputSchema": {
+    "properties": {
+     "run_id": {
+      "type": "string",
+      "description": "The run_id from actions_run or actions_runs."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "run_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_run_get",
+   "title": "Get one action run"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Get the actions assigned to an agent"
+   },
+   "description": "The actions assigned to an agent: {agent_id, actions, active}. `actions` is every assigned name; `active` is the subset that has\nan approved version — only those are tools of the agent (named action_<name>). Read-only. Scope actions:read.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "agent_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_agent_get",
+   "title": "Get the actions assigned to an agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create an action connection"
+   },
+   "description": "Create a connection: one outside system that actions may reach. Creating it sends nothing. Scope actions:manage.\n\nThe config never contains a secret value and this tool takes none. Store the secret as an Org Key in the web app (MCP & Keys)\nand reference it by name: {cred:NAME} inside a header value, secret_name for a webhook. A header that looks like a credential\nwithout a {cred:NAME} reference, or a name that is not an Org Key, is refused (422). Kind \"simulate\" sends nothing and returns\neach action's fixed output — use it to try actions before a real system exists.",
+   "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Lower-case letters, digits and underscores, 2–64 characters, starting with a letter (e.g. \"erp\"). Unique in the organization."
+     },
+     "kind": {
+      "type": "string",
+      "description": "\"http\", \"webhook\", \"mcp\" or \"simulate\". Cannot be changed later."
+     },
+     "config": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Shape per kind. Omit for simulate.\nhttp: {\"base_url\": \"https://api.example.com/v1\", \"headers\": {\"Authorization\": \"Bearer {cred:ERP_TOKEN}\"},\n\"allowed_hosts\": [\"files.example.com\"]} — https only; actions may call the base_url host and the listed hosts, nothing else.\nAn API that wants OAuth2 client credentials adds \"auth\": {\"type\": \"oauth2_client_credentials\", \"token_url\": \"https://…\",\n\"client_id\": \"<value or {cred:NAME}>\", \"client_secret\": \"{cred:NAME}\", \"scope\"?: \"…\", \"hosts\": [<every allowed host that is\nnot the token server's host>]} and leaves the Authorization header out — Junis fetches the token and sends it as a Bearer token.\nwebhook: {\"url\": \"https://hooks.example.com/junis\", \"secret_name\": \"ERP_WEBHOOK_SECRET\"} — each event is signed\n(Standard Webhooks v1) with the Org Key named by secret_name. That key must already exist. While the receiver switches to a\nnew secret, add \"previous_secret_name\": \"<old Org Key>\" and each event carries both signatures; remove it afterwards. If the user has no signing\nsecret yet, send them to the web app (Team → Actions → Connections → Add a connection → Webhook → \"Create a new secret\"):\nJunis creates it there and shows it to them once, so the secret never passes through this conversation.\nmcp: {\"platform_id\": \"<id from list_mcp_platforms>\"} — a remote MCP server registered in this organization.\nsimulate: {}"
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "name",
+     "kind"
+    ],
+    "type": "object"
+   },
+   "name": "actions_connection_create",
+   "title": "Create an action connection"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Change an action connection or turn it off/on"
+   },
+   "description": "Change a connection's config or turn it off/on. Name and kind cannot be changed. Ask the user first. Scope actions:manage.\n\n`config` replaces the whole config (same shape and rules as actions_connection_create — no secret values, {cred:NAME} references\nonly), so read the current one with actions_connections and send it complete. A connection that no approved action uses can be\nchanged freely. Turning a connection off (is_active=false) always works and stops every action that uses it. When approved\nactions use the connection, changing its config or turning it back on (is_active=true) is refused with 409 connection_in_use:\nthat changes where approved actions send data, so a person does it in the web app (Team → Actions).",
+   "inputSchema": {
+    "properties": {
+     "connection_id": {
+      "type": "string",
+      "description": "Connection id from actions_connections."
+     },
+     "config": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "The complete new config. Omit to leave it unchanged."
+     },
+     "is_active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "false = off, true = on. Omit to leave it unchanged."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "connection_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_connection_update",
+   "title": "Change an action connection or turn it off/on"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete an action connection"
+   },
+   "description": "Delete a connection. Confirm with the user first. Refused with 409 connection_in_use while approved actions use it (a person\ndisables those in the web app first). Scope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "connection_id": {
+      "type": "string",
+      "description": "Connection id from actions_connections."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "connection_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_connection_delete",
+   "title": "Delete an action connection"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Test an action connection (a webhook receives one signed ping)"
+   },
+   "description": "Check a connection: {ok, message, …}. What it does depends on the kind, and for a webhook it is not a dry run:\nhttp — checks the address and that the referenced Org Keys exist; sends nothing.\nwebhook — sends one signed `junis.ping` event to the endpoint (the receiving system sees it).\nmcp — connects to the MCP server and returns its tools (name, description, input_schema) for writing an executor.\nsimulate — always ok; sends nothing.\nScope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "connection_id": {
+      "type": "string",
+      "description": "Connection id from actions_connections."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "connection_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_connection_test",
+   "title": "Test an action connection (a webhook receives one signed ping)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Create an action draft (a person approves it in the web app)"
+   },
+   "description": "Create an action draft. A draft does nothing: no agent gets it and actions_run refuses it until a person approves it in the\nweb app (Team → Actions). This tool cannot approve. An approved version is never edited — creating a draft with the name of an\nexisting action makes its next version, which replaces the approved one only when a person approves it. If that name already has\nan open draft the call answers 409 draft_exists with its definition_id: change it with actions_draft_update or delete it.\nCheck the draft with actions_dry_run before telling the user it is ready for approval. Scope actions:manage.\n\nThe definition fixes the address, headers and body shape; a caller or model supplies parameter values only. In executor strings,\n\"{param}\" is replaced by that parameter's (or fixed_args') value; a string that is exactly \"{param}\" keeps the value's type\n(number, boolean, object). A name that is neither a parameter nor a fixed arg is refused (422 invalid_action lists every error).",
+   "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Lower-case letters, digits and underscores, 2–48 characters, starting with a letter. Agents see the tool action_<name>."
+     },
+     "description": {
+      "type": "string",
+      "description": "10–2,000 characters. What the action does and when to use it — an agent decides from this text."
+     },
+     "effect": {
+      "type": "string",
+      "description": "\"read\", \"write\" or \"destructive\" — what it does to the outside system."
+     },
+     "executor": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "What is sent. Shape by the connection's kind:\nhttp: {\"method\": \"POST\", \"path\": \"/orders\", \"query\": {...}, \"headers\": {...}, \"body\": {\"part\": \"{part_no}\", \"qty\": \"{quantity}\"}}\n— method GET/POST/PUT/PATCH/DELETE; path starts with \"/\" and has no query string (use query); no body with GET/DELETE.\nwebhook: {\"event_type\": \"order.created\", \"body\": {...}} — delivered as {type, timestamp, data}.\nmcp: {\"tool\": \"<tool name from actions_connection_test>\", \"arguments\": {...}} — omit arguments to pass the parameters as they are.\nsimulate, or no connection: {\"output\": {...}} — returned as the result; nothing is sent."
+     },
+     "connection": {
+      "default": "",
+      "type": "string",
+      "description": "Name of the connection (actions_connections). Empty = a simulation with no connection. Without a connection, or\non a simulate connection, the executor may hold only \"output\": any other key is refused (422 invalid_action)."
+     },
+     "title": {
+      "default": "",
+      "type": "string",
+      "description": "Display name (≤120 characters)."
+     },
+     "target_type": {
+      "default": "",
+      "type": "string",
+      "description": "Knowledge map kind the action acts on, e.g. \"Equipment\" (optional)."
+     },
+     "params_schema": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "JSON Schema object with top-level \"properties\" only (≤30) and \"required\". Types: string, integer, number,\nboolean, array, object. A string parameter may carry \"x-entity-type\": \"<Knowledge map kind>\" — the value must then name an\nentity of that kind (the platform resolves it; unknown or ambiguous names are refused) — and one such parameter may carry\n\"x-target\": true to mark the run's target."
+     },
+     "fixed_args": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Values no caller can change, usable in the executor as \"{name}\". Names must differ from the parameters."
+     },
+     "idempotent": {
+      "default": false,
+      "type": "boolean",
+      "description": "true only if repeating the request is harmless: the platform then retries timeouts and 5xx (up to 3 attempts).\nfalse (default): a timeout is recorded as `unknown` and never retried."
+     },
+     "risk": {
+      "default": "",
+      "type": "string",
+      "description": "\"auto\" (runs at once), \"confirm\" (one person confirms each run) or \"two_person\" (two different admins). Empty = the\ndefault: auto for effect read, confirm otherwise. Do not lower it to avoid a confirmation unless the user asked for that."
+     },
+     "preconditions": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Up to 10 conditions, all must hold: {\"param\": \"quantity\", \"op\": \"lte\", \"value\": 50} with op equals, not_equals,\nin, lte, gte or exists; or {\"roles\": [\"OWNER\", \"ADMIN\", \"MEMBER\"]}. A roles rule checks the organization role of\nwhoever the run is for: the person who submits it in the web app, the owner of the session an agent is working in, or the\nowner of the API key. With no roles rule, API keys must be owner/admin keys and an agent the action is assigned to can\nrun it for any user. Listing MEMBER also lets members' own API keys run it; a roles rule without MEMBER also stops\nagents from running it on behalf of members."
+     },
+     "summary_template": {
+      "default": "",
+      "type": "string",
+      "description": "One line (≤300 characters) shown on approval cards and in the run log, e.g. \"Order {quantity} × {part_no}\"."
+     },
+     "timeout_s": {
+      "default": 30,
+      "type": "integer",
+      "description": "1–120 seconds for the request to the outside system (default 30)."
+     },
+     "rate_limit_per_hour": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "1–10,000 runs per hour. Omit for no limit."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "name",
+     "description",
+     "effect"
+    ],
+    "type": "object"
+   },
+   "name": "actions_draft_create",
+   "title": "Create an action draft (a person approves it in the web app)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Replace an action draft"
+   },
+   "description": "Replace a draft. Only a draft can be changed: an approved or disabled version answers 409 not_a_draft — create a new version\nwith actions_draft_create instead. The draft still does nothing until a person approves it in the web app (Team → Actions).\nScope actions:manage.\n\nThis is a full replacement, not a patch: read the draft with actions_get, then send every field it should keep. A field you\nomit goes back to its default (no parameters, no preconditions, risk by effect, 30 s timeout …). The name cannot be changed, and\nthe connection is kept when `connection` is empty. Field meanings and executor shapes are the same as actions_draft_create.",
+   "inputSchema": {
+    "properties": {
+     "definition_id": {
+      "type": "string",
+      "description": "The draft's id (`id` of the draft version in actions_get, or definition_id from a 409 draft_exists)."
+     },
+     "description": {
+      "type": "string",
+      "description": "10–2,000 characters: what the action does and when to use it."
+     },
+     "effect": {
+      "type": "string",
+      "description": "\"read\", \"write\" or \"destructive\"."
+     },
+     "executor": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "What is sent, per the connection kind."
+     },
+     "connection": {
+      "default": "",
+      "type": "string",
+      "description": "Name of another connection to attach. Empty = keep the current one."
+     },
+     "title": {
+      "default": "",
+      "type": "string",
+      "description": "Display name."
+     },
+     "target_type": {
+      "default": "",
+      "type": "string",
+      "description": "Knowledge map kind the action acts on."
+     },
+     "params_schema": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "JSON Schema object (top-level properties)."
+     },
+     "fixed_args": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Values no caller can change."
+     },
+     "idempotent": {
+      "default": false,
+      "type": "boolean",
+      "description": "true only if repeating the request is harmless."
+     },
+     "risk": {
+      "default": "",
+      "type": "string",
+      "description": "\"auto\", \"confirm\" or \"two_person\". Empty = default by effect."
+     },
+     "preconditions": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Conditions that must all hold."
+     },
+     "summary_template": {
+      "default": "",
+      "type": "string",
+      "description": "One-line summary with {param} placeholders."
+     },
+     "timeout_s": {
+      "default": 30,
+      "type": "integer",
+      "description": "1–120 seconds (default 30)."
+     },
+     "rate_limit_per_hour": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Runs per hour. Omit for no limit."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "definition_id",
+     "description",
+     "effect"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_draft_update",
+   "title": "Replace an action draft"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Delete an action draft"
+   },
+   "description": "Delete a draft. Confirm with the user first. Only drafts: an approved or disabled version answers 409 not_a_draft, an id that\ndoes not exist 404 not_found. Disabling an approved action is done by a person in the web app (Team → Actions); there is no tool for it.\nScope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "definition_id": {
+      "type": "string",
+      "description": "The draft's id (from actions_get)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "definition_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_draft_delete",
+   "title": "Delete an action draft"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Preview the request an action would send (sends nothing)"
+   },
+   "description": "Preview what one version of an action would send for the given arguments: {status: \"dry_run\", action, version, summary,\npreview}. Sends nothing to the outside system, records no run, and shows secrets as ***. Works on drafts too — use it to check a\ndraft before asking a person to approve it. The arguments are validated exactly as in a real run (422 bad_arguments returns the\nexpected schema; 422 unknown_entity when an entity parameter does not resolve). When the arguments would not pass the action's\npreconditions, the preview is still returned and carries would_fail: {code, message} — a real run would be refused for that\nreason. Scope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "definition_id": {
+      "type": "string",
+      "description": "Id of the version to preview (from actions_get or the result of actions_draft_create)."
+     },
+     "args": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Parameter values, as the action's params_schema describes them."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "definition_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_dry_run",
+   "title": "Preview the request an action would send (sends nothing)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Preview an OpenAPI import (writes nothing)"
+   },
+   "description": "Read an OpenAPI document and list the operations that can become actions: {title, base_url, operations: [{operation_id,\nmethod, path, summary, name, effect, risk, parameters, importable, errors, warnings}], warnings}. Writes nothing. Pick\noperation_id values from here for actions_import_openapi. Scope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "spec": {
+      "type": "string",
+      "description": "The OpenAPI document as text — JSON or YAML, OpenAPI 3.0/3.1 or Swagger 2.0, at most 2 MB. Pass the document itself,\nnot a URL (the platform does not fetch it)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "spec"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_import_openapi_preview",
+   "title": "Preview an OpenAPI import (writes nothing)"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Import OpenAPI operations as action drafts"
+   },
+   "description": "Create an HTTP connection (or reuse one) and one action draft per chosen operation: {connection, created: [drafts]}.\nAll or nothing — if any chosen operation cannot be imported, 422 invalid_operations says why and nothing is saved. Everything\ncreated is a draft: a person reviews name, description, effect and risk and approves each one in the web app (Team → Actions).\nOnly GET operations are imported as idempotent (safe for the platform to retry); for any other operation a person turns that on\nduring review. Run actions_import_openapi_preview first. Scope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "spec": {
+      "type": "string",
+      "description": "The same OpenAPI document text given to the preview (JSON or YAML, at most 2 MB)."
+     },
+     "connection": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "{\"name\": \"erp\", \"headers\": {\"Authorization\": \"Bearer {cred:ERP_TOKEN}\"}, \"base_url\": \"https://…\",\n\"allowed_hosts\": [...]}. Only name is required. If an HTTP connection with that name exists it is reused as it is;\notherwise one is created with base_url (default: the document's server URL). Headers never hold a secret value — reference\nan Org Key as {cred:NAME}."
+     },
+     "operations": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "description": "operation_id values from the preview (1–100) whose `importable` is true."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "spec",
+     "connection",
+     "operations"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_import_openapi",
+   "title": "Import OpenAPI operations as action drafts"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "Export actions as a junis.actions/v1 document"
+   },
+   "description": "Export the organization's actions as one junis.actions/v1 document: {format, exported_at, connections: [{name, kind, config}],\nactions: [{name, title, description, params_schema, executor, connection, effect, risk, …, exported_status}]}. Each action is the\nversion in use (the approved one, or the newest when none is approved). It holds no secret values — headers carry {cred:NAME} and a\nwebhook names its Org Key — and the MCP tool fingerprint is left out (it is pinned again when someone approves it). Read-only.\nScope actions:read (owner/admin key).",
+   "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the source organization. Always pass it."
+     }
+    },
+    "type": "object"
+   },
+   "name": "actions_export",
+   "title": "Export actions as a junis.actions/v1 document"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Import a junis.actions/v1 document as drafts"
+   },
+   "description": "Import a junis.actions/v1 document (from actions_export): {format, dry_run, connections: [{name, result, reason?, message?}],\nactions: [{name, result, version?, reason?, message?}]}. result is would_create / created, exists (a connection with that name and\nkind is kept as it is) or skipped (reason says why: kind_mismatch, draft_exists, missing_secret, connection_inactive, connection_not_found,\ninvalid_…). The preview runs the same checks as the import, so the Org Keys and MCP server a connection names must exist here.\nNothing is overwritten, every action comes in as a draft that a person approves in the web app, and one bad item does not stop the\nrest. dry_run defaults to true: show the user that result first, then call again with dry_run=false only after they agree. The\nOrg Keys the document names must exist in the target organization. Scope actions:manage (owner/admin key).",
+   "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+     "document": {
+      "additionalProperties": true,
+      "type": "object",
+      "description": "The whole document object as actions_export returned it."
+     },
+     "dry_run": {
+      "default": true,
+      "type": "boolean",
+      "description": "true (default) writes nothing and reports what would happen; false imports."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "document"
+    ],
+    "type": "object"
+   },
+   "name": "actions_import",
+   "title": "Import a junis.actions/v1 document as drafts"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": false,
+    "title": "Replace the actions assigned to an agent"
+   },
+   "description": "Replace the whole list of actions assigned to an agent; returns {agent_id, actions, active}. Each assigned action with an\napproved version becomes a tool of that agent (action_<name>), so this gives the agent new abilities on outside systems — ask the\nuser first. Read the current list with actions_agent_get and send every name the agent should keep: a name you leave out is\nremoved. A name with no approved version yet is stored but is not a tool until a person approves it; a name that does not exist\nin the organization is refused (422 unknown_actions). The action's own risk level still applies to every call the agent makes.\nThe same list can be kept in a squad document (squad_export / squad_plan / squad_apply: an agent's \"actions\" key). Assignments are\nnot part of an agent's version history — to undo a change, set the previous list again. Scope actions:manage.",
+   "inputSchema": {
+    "properties": {
+     "agent_id": {
+      "type": "string",
+      "description": "UUID of the agent."
+     },
+     "actions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "description": "Action names (at most 40). [] removes every action from the agent."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "agent_id",
+     "actions"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_agent_set",
+   "title": "Replace the actions assigned to an agent"
+  },
+  {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": false,
+    "openWorldHint": true,
+    "readOnlyHint": false,
+    "title": "Run an approved action on its target system"
+   },
+   "description": "Run an approved action once and return {run_id, status, action, version, summary, http_status?, output?, error?,\napprovals_needed?, expires_at?, idempotency_key}. This acts on an outside system — run it only when the user asked for that\neffect. Scope actions:run. An owner's or admin's key can run every approved action. A member's key can run only an action\nwhose definition lists MEMBER in a roles precondition; any other answers 403 precondition_failed, and adding the scope to the\nkey does not change that — an admin allows members in the action's definition, or assigns the action to an agent instead.\n\nAn API key is not a person. An action with risk \"auto\" executes at once. An action with risk \"confirm\" or \"two_person\" is NOT\nexecuted: the result is status \"awaiting_approval\" and a person approves or rejects it in the web app (Team → Actions) within\n24 hours. This tool cannot approve, and no tool can.\n\nRead `status` and report it to the user.\nsucceeded — done; `output` is the target system's answer (capped at 8,000 characters).\nfailed — the request never reached the target system, or the target answered with an error (`error`, `http_status`). After the\ncause is fixed, a new request is fine.\nunknown — the request was sent and then timed out or the connection dropped, or the run was interrupted (`error.code` may be\n\"interrupted\"). The target system may have processed it. Never resend; the user checks the target system first.\nawaiting_approval — not executed; waiting for a person. Follow it with actions_run_get(run_id).\nexecuting — the approvals are complete and the platform is executing it now (a resend with the same key can show this). Do not\nresend; read the outcome with actions_run_get(run_id).\nrejected / expired — a person declined it, or nobody approved within 24 hours.\ndry_run — the preview you asked for; nothing was sent.\nNever call again to \"retry\" an awaiting_approval, executing or unknown result: awaiting_approval is already queued, executing is\nunder way, and an unknown run may have reached the target system. Tell the user instead.\n\nEvery call carries an idempotency key, so a resend cannot run the action twice: the same key with the same arguments returns the\nfirst run (with replayed: true), even when the action is at its hourly limit; the same key with different arguments is refused\n(idempotency_key_reused). When you do not pass\none, a new key is generated for this call and returned in the result — it protects against network-level resends only. Pass your\nown stable key (for example an order or ticket id) whenever the same request might be sent again later. If this tool fails\nwithout an answer (timeout, 5xx), the error message contains the key: look for the run with actions_runs(action=name) or call\nagain with that same key and the same args; never start it under a new key.",
+   "inputSchema": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Name of an approved action (actions_list with status \"approved\")."
+     },
+     "args": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Parameter values, as the action's params_schema describes them (see actions_get). Wrong or missing values answer\n422 bad_arguments with the expected schema. A value can never pick a secret: any value that contains an Org Key\nreference ({cred:NAME}) is refused with bad_arguments, wherever it would go (header, body or query)."
+     },
+     "idempotency_key": {
+      "default": "",
+      "type": "string",
+      "description": "Your own stable key for this request (at most 160 characters). Empty = one is generated for this call."
+     },
+     "dry_run": {
+      "default": false,
+      "type": "boolean",
+      "description": "true = validate and return the request that would be sent, without sending it or recording a run."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it."
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "actions_run",
+   "title": "Run an approved action on its target system"
   }
  ]
 }

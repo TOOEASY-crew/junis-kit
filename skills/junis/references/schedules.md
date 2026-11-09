@@ -124,7 +124,7 @@ failed run may have no result; read `error_message`).
 | `mcp_dropped` | An MCP connection failed; the agent ran without its tools |
 | `loop_guard_truncated` | A loop was cut off and produced nothing else |
 | `loop_incomplete` | The loop's last report says items remain (`K<N`); the loop ended before the work did |
-| `confirmation_required` | A tool on the agent's confirmation list was needed, and a scheduled run has nobody to approve it, so it was not run. Take the tool off the list (`set_agent_confirmation_tools`) or have the squad prepare instead of act ([improving.md](improving.md)) |
+| `confirmation_required` | A tool on the agent's confirmation list was needed, and a scheduled run has nobody to approve it, so it was not run. Take the tool off the list (`set_agent_confirmation_tools`) or have the squad prepare instead of act ([improving.md](improving.md)). An action whose risk is `confirm` behaves the same way and cannot be taken off a list: an unattended squad needs actions a person approved with risk `auto` ([actions.md](actions.md)) |
 | `required_tool_missing` | A tool in `metadata.required_tools` never succeeded (see above) |
 | `transient_error_only`, `transient_error_present` | A temporary provider error was the whole answer, or part of it |
 | `model_error_present` | A model error message is part of the answer |

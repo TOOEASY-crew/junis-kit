@@ -22,7 +22,7 @@ function asText(value) {
 
 // Tools whose ordinary use removes or replaces data.
 export const DESTRUCTIVE_TOOL =
-  /^(delete_|remove_|unlink_|unassign_)|^knowledge_\w+_delete$|^(write_skill_file|switch_organization|update_soul_content|update_memory_content|apply_team_changes|update_mcp_platform|manage_skill_bundle|rollback_agent|set_agent_enabled_tools|set_agent_confirmation_tools|set_tool_safety|set_flag_org_opt_out|squad_apply)$/;
+  /^(delete_|remove_|unlink_|unassign_)|^knowledge_\w+_delete$|^actions_\w+_delete$|^(write_skill_file|switch_organization|update_soul_content|update_memory_content|apply_team_changes|update_mcp_platform|manage_skill_bundle|rollback_agent|set_agent_enabled_tools|set_agent_confirmation_tools|set_tool_safety|set_flag_org_opt_out|squad_apply|actions_run|actions_agent_set|actions_connection_update|actions_draft_update|actions_import_openapi|actions_import)$/;
 
 // Tools that always replace or remove something, whatever their arguments
 // (each needs a reason here: a tool on the list above without one would be
@@ -34,7 +34,20 @@ const ALWAYS_DESTRUCTIVE = {
   set_agent_confirmation_tools: 'set_agent_confirmation_tools replaces the list of tools that need a human confirmation; in unattended runs those tools are not run at all.',
   set_tool_safety: "set_tool_safety replaces the organization's tool safety rules for every agent.",
   set_flag_org_opt_out: 'set_flag_org_opt_out switches a feature on or off for the whole organization.',
+  actions_agent_set: 'actions_agent_set replaces the whole list of actions the agent can run; an action left out is taken away from it.',
+  actions_connection_update: 'actions_connection_update replaces the connection settings (address, headers) as a whole or switches the connection on or off for every action that uses it.',
+  actions_import_openapi: 'actions_import_openapi creates a connection and one draft action for each chosen operation in a single call.',
+  actions_draft_update: 'actions_draft_update replaces the whole draft (address, parameters, effect and risk) with the one sent; what is left out is lost.',
 };
+
+// An action run reaches a system outside Junis (an HTTP API, a webhook, an MCP
+// tool) or is filed for a person's approval; nothing sent can be taken back
+// from here. A dry run only shows the request that would be sent.
+const ACTION_RUN_REASON = 'runs an action in a system outside Junis, or files it for a person to approve; what it sends cannot be taken back from here.';
+
+// A junis.actions/v1 import adds connections and drafts in one call (it never overwrites). The tool previews unless dry_run is
+// false; the External route imports unless dry_run is true — each is asked only when it really writes.
+const ACTION_IMPORT_REASON = 'imports a junis.actions/v1 document: it adds the connections and action drafts it lists in one call (nothing existing is changed).';
 
 // Tools that are safe unless they carry a whole replacement text.
 const OVERWRITES_TEXT = new Set(['update_agent', 'update_skill', 'update_orchestrator']);
@@ -83,7 +96,10 @@ export function destructiveReason(tool, input = {}) {
   const args = input && typeof input === 'object' ? input : {};
   if (/^(delete_|remove_|unlink_|unassign_)/.test(name)) return `${name} removes data or a link on Junis and cannot be undone.`;
   if (/^knowledge_\w+_delete$/.test(name)) return `${name} removes Knowledge data on Junis and cannot be undone.`;
+  if (/^actions_\w+_delete$/.test(name)) return `${name} removes an action draft or connection on Junis and cannot be undone.`;
   if (ALWAYS_DESTRUCTIVE[name]) return ALWAYS_DESTRUCTIVE[name];
+  if (name === 'actions_run') return yes(args.dry_run) ? '' : `actions_run ${ACTION_RUN_REASON}`;
+  if (name === 'actions_import') return args.dry_run === false || args.dry_run === 0 || FALSE_WORD.test(asText(args.dry_run).trim()) ? `actions_import ${ACTION_IMPORT_REASON}` : '';
   if (name === 'update_soul_content' || name === 'update_memory_content' || name === 'write_skill_file') {
     return `${name} replaces the whole text. Use the patch tool for edits.`;
   }
@@ -179,6 +195,9 @@ export function destructiveApiReason(method, path = '', { query, body } = {}) {
   if (/\/brain\/sources\/[^/]+\/retry$/.test(route) && TRUE_WORD.test(asText(params.confirm_removal).trim())) {
     return 'The retry applies a large removal the last sync held back.';
   }
+  if (route === '/actions/run' && !yes(data.dry_run)) return `POST /actions/run ${ACTION_RUN_REASON}`;
+  if (route === '/actions/import/openapi') return 'POST /actions/import/openapi creates a connection and one draft action for each chosen operation in a single call.';
+  if (route === '/actions/import' && !yes(data.dry_run)) return `POST /actions/import ${ACTION_IMPORT_REASON}`;
   if (route === '/management/squad/apply') {
     return 'POST /management/squad/apply changes every agent the squad document differs on (create, update, sub-agents, MCP links and tool lists).';
   }
@@ -437,8 +456,9 @@ function patternCommandReason(text) {
     const mode = /\bmode=(merge|replace)|\\?"mode\\?"\s*:\s*\\?"(merge|replace)/.exec(text);
     const overwrite = /\boverwrite=["']?true\b|\\?"overwrite\\?"\s*:\s*(true|\\?"true\\?")/i.test(text);
     const removal = /confirm_removal=(1|true|t|yes|y|on)\b/i.test(text);
+    const dryRun = /\bdry_run=["']?true\b|\\?"dry_run\\?"\s*:\s*(true|\\?"true\\?")/i.test(text);
     return destructiveApiReason('POST', post[1], {
-      body: { mode: mode ? mode[1] || mode[2] : undefined, overwrite },
+      body: { mode: mode ? mode[1] || mode[2] : undefined, overwrite, dry_run: dryRun || undefined },
       query: removal ? { confirm_removal: 'true' } : {},
     });
   }
