@@ -10,6 +10,7 @@ import readline from 'node:readline';
 import { BOOLEAN_FLAGS, parseArgs, parseQuery, resolvePayload, expandFileReferences, readStdin, shellWord } from './lib/args.mjs';
 import { KIT_VERSION, credentialsPath, deleteProfile, loadStore, loginUrl, resolveProfile } from './lib/config.mjs';
 import { destructiveApiReason, destructiveReason } from './lib/destructive.mjs';
+import { emptyTextFieldError } from './lib/guards.mjs';
 import { KitError } from './lib/http.mjs';
 import { unwrapToolResult } from './lib/mcp-remote.mjs';
 import { openInBrowser } from './lib/browser.mjs';
@@ -40,6 +41,11 @@ Operate
   session wait <session-id> [--wait-seconds n]
   session messages <session-id> [--tail n|--all] [--page-size n]
   lint <file ...|-> [--allow key1,key2] Check instruction text before saving
+  wiki get <file_key> [--out file]   One wiki page: content, version, sha256
+  wiki put <file_key> --file f|--text=s [--annotation s] [--summary s] [--min-chars n]
+                                     Replace a page safely: refuses an empty body, saves the current page
+                                     under the kit home, writes with the version it read, reads back and compares
+  wiki append <file_key> --file f|--text=s
   snapshot [--org id] [--out file]      Save an organization's squad as JSON
   snapshot list | snapshot show <file> <agent> | snapshot diff <older> <newer>
 
@@ -194,6 +200,8 @@ async function commandTools({ positionals, flags, pairs }) {
     const name = rest[0];
     if (!name) throw new KitError('Usage: tools call <name> [key=value ...]', { code: 'usage' });
     const payload = expandFileReferences(resolvePayload({ flags, pairs }) || {});
+    const emptyField = emptyTextFieldError(payload);
+    if (emptyField) throw emptyField;
     requireYes(destructiveReason(name, payload), flags);
     const profile = resolveProfile();
     const timeoutMs = flags.timeout ? Number(flags.timeout) * 1000 : undefined;
@@ -226,6 +234,8 @@ async function commandApi({ positionals, flags, pairs }) {
     requireYes(destructiveApiReason(upper, path, { query: merged }), flags);
     return kit.callApi({ method: upper, path, query: merged });
   }
+  const emptyField = emptyTextFieldError(payload);
+  if (emptyField) throw emptyField;
   requireYes(destructiveApiReason(upper, path, { query, body: payload ?? {} }), flags);
   return kit.callApi({ method: upper, path, query, body: payload ?? {} });
 }
@@ -254,6 +264,7 @@ const COMMANDS = {
   run: async (context) => (await import('./lib/run.mjs')).commandRun(context),
   session: async (context) => (await import('./lib/run.mjs')).commandSession(context),
   snapshot: async (context) => (await import('./lib/snapshot.mjs')).commandSnapshot(context),
+  wiki: async (context) => (await import('./lib/wiki.mjs')).commandWiki(context),
   install: async (context) => (await import('./lib/installer.mjs')).commandInstall(context),
   uninstall: async (context) => (await import('./lib/installer.mjs')).commandUninstall(context),
   doctor: async (context) => (await import('./lib/doctor.mjs')).commandDoctor(context),
@@ -271,7 +282,7 @@ async function main() {
   }
 
   // Commands whose positionals are prose or names keep "key=value" tokens.
-  const prose = ['run', 'session', 'org', 'lint', 'snapshot'].includes(command);
+  const prose = ['run', 'session', 'org', 'lint', 'snapshot', 'wiki'].includes(command);
   const parsed = parseArgs(rest, { booleans: BOOLEAN_FLAGS, pairs: !prose });
   if (parsed.flags.help) {
     process.stdout.write(HELP);

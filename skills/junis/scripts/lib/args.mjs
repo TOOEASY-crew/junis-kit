@@ -182,7 +182,15 @@ export function readStdin() {
 export function resolvePayload({ flags, pairs }) {
   let source;
   if (typeof flags.json === 'string') source = flags.json === '-' ? readStdin() : flags.json;
-  else if (typeof flags.file === 'string') source = flags.file === '-' ? readStdin() : fs.readFileSync(flags.file, 'utf8');
+  else if (typeof flags.file === 'string') {
+    if (flags.file !== '-' && !fs.existsSync(flags.file)) {
+      throw new KitError(`File not found: ${flags.file}`, { code: 'file_not_found', hint: 'Nothing was sent. Check the path of the payload file.' });
+    }
+    source = flags.file === '-' ? readStdin() : fs.readFileSync(flags.file, 'utf8');
+    if (!source.trim()) {
+      throw new KitError(`The payload file is empty: ${flags.file}`, { code: 'empty_payload', hint: 'Nothing was sent. The step that should have written the file probably failed.' });
+    }
+  }
   if (source === undefined) return Object.keys(pairs).length ? pairs : undefined;
   const parsed = parseJsonSafe(source);
   if (parsed === undefined) {

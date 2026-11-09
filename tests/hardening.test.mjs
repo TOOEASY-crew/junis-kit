@@ -250,6 +250,12 @@ describe('one destructive list for annotations and the hook', () => {
     assert.ok(destructiveCommandReason('node ~/.junis-kit/skills/junis/scripts/junis.mjs tools call delete_agent agent_id=x'));
     assert.ok(destructiveCommandReason('junis-kit api DELETE /brain/sources/1'));
     assert.ok(destructiveCommandReason('node junis.mjs tools call update_agent agent_id=x instruction=@file.md'));
+    // wiki put replaces a page (the command backs it up first); get and append are not asked
+    assert.ok(destructiveCommandReason('junis-kit wiki put policies/returns --file returns.md --yes'));
+    assert.ok(destructiveCommandReason('node ~/.junis/junis.mjs wiki put k --file x'));
+    assert.ok(destructiveCommandReason('node "$K" wiki put k --file x'));
+    assert.equal(destructiveCommandReason('junis-kit wiki get policies/returns --out /tmp/returns.md'), '');
+    assert.equal(destructiveCommandReason('junis-kit wiki append notes/log --text=hello'), '');
     // the command route reads the same rules as a tool call: unassign, and JSON arguments
     assert.ok(destructiveCommandReason('node junis.mjs tools call manage_skill_bundle action=unassign bundle_id=b'));
     assert.ok(destructiveCommandReason('node junis.mjs tools call update_agent --json \'{"agent_id":"x","instruction":"whole"}\''));

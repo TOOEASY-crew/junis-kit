@@ -55,6 +55,12 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
       [ORG_A]: [{ id: 'sch-1', name: 'Weekly digest', schedule_type: 'weekly', enabled: true, next_run_at: '2026-10-05T09:00:00+09:00' }],
     },
     soul: { 'soul.md': 'We answer with evidence.', 'identity.md': 'Warm and brief.' },
+    wiki: {
+      [ORG_A]: { 'policies/returns': { content: 'Returns within 30 days.', version: 3, annotation: 'Return policy' } },
+    },
+    // Test knobs for the wiki routes: bumpOnGet (someone else edits between read and write → 409),
+    // truncateOnPut (the stored page differs from what was sent), forbidGet (403), archiveOnAppend (size rollover key).
+    wikiBehavior: {},
     mcpPlatforms: {},
     skills: {},
     datastores: {},
@@ -126,6 +132,36 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
     if ((match = /^GET \/management\/agents\/([^/]+)$/.exec(route))) {
       const agent = agents.find((entry) => entry.agent_id === match[1]);
       return agent ? send(response, 200, agent) : send(response, 404, { detail: 'Agent not found' });
+    }
+    if (route === 'GET /management/wiki/content') {
+      if (state.wikiBehavior.forbidGet) return send(response, 403, { detail: 'Admin role required' });
+      const key = url.searchParams.get('file_key');
+      const page = (state.wiki[auth.organizationId] || {})[key];
+      if (!page) return send(response, 404, { detail: 'Wiki page not found' });
+      const shown = { file_key: key, ...page };
+      if (state.wikiBehavior.bumpOnGet) page.version += 1;   // another writer edits right after this read
+      return send(response, 200, shown);
+    }
+    if (route === 'PUT /management/wiki/content') {
+      if (!state.wiki[auth.organizationId]) state.wiki[auth.organizationId] = {};
+      const pages = state.wiki[auth.organizationId];
+      const existing = pages[body.file_key];
+      if (existing && body.expected_version !== undefined && body.expected_version !== existing.version) {
+        return send(response, 409, { detail: 'The page changed since it was read' });
+      }
+      const version = existing ? existing.version + 1 : 1;
+      const stored = state.wikiBehavior.truncateOnPut ? String(body.content ?? '').slice(0, 5) : String(body.content ?? '');
+      pages[body.file_key] = { content: stored, version, annotation: body.annotation || '' };
+      return send(response, 200, { file_key: body.file_key, version, chars: stored.length });
+    }
+    if (route === 'POST /management/wiki/content/append') {
+      const existing = (state.wiki[auth.organizationId] || {})[body.file_key];
+      if (!existing) return send(response, 404, { detail: 'Wiki page not found' });
+      existing.content = `${existing.content}\n\n${body.content}`;
+      existing.version += 1;
+      const out = { file_key: body.file_key, version: existing.version };
+      if (state.wikiBehavior.archiveOnAppend) out.archived_to = state.wikiBehavior.archiveOnAppend;
+      return send(response, 200, out);
     }
     if ((match = /^GET \/management\/agents\/([^/]+)\/sub-agents$/.exec(route))) return send(response, 200, []);
     if (route === 'GET /management/schedules') {
