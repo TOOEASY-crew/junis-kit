@@ -36,6 +36,8 @@ release tags users pin with `JUNIS_KIT_REF`.
   is asked unless `dry_run=true`), and through `junis_api` `POST /actions/run`,
   `POST /actions/import/openapi` and `POST /actions/import`.
 
+- `junis_wiki` (actions get, put, append) gives agents the same safe wiki operations through the MCP bridge; put on an existing page needs `confirmed=true`.
+
 ### Changed
 
 - A write whose body sets `instruction` or `content` to an empty string is refused before it leaves the kit, on every path: `api`, `tools call` and the MCP bridge (`junis_api`, `junis_call_tool`). Typical cause: `instruction=@file` with a file that was never written.

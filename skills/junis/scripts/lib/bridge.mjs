@@ -12,6 +12,7 @@ import { KIT_VERSION, customHostWarning, resolveProfile } from './config.mjs';
 import { KitError } from './http.mjs';
 import { SECRET_READ_TOOLS, destructiveApiReason, destructiveReason, secretReadReason } from './destructive.mjs';
 import { emptyTextFieldError } from './guards.mjs';
+import { wikiAppend, wikiGet, wikiPut } from './wiki.mjs';
 import { PROTOCOL_VERSION, READ_PREFIX, deriveAnnotations } from './mcp-remote.mjs';
 import * as kit from './kit-tools.mjs';
 import { runStatus, seconds, startRun } from './run.mjs';
@@ -223,6 +224,27 @@ const KIT_TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    modes: ['full', 'lazy'],
+  },
+  {
+    name: 'junis_wiki',
+    description:
+      'One wiki page of the default organization, by file key. action "get": content, version, sha256. action "put": create or replace the whole page safely — empty content is refused, an existing page is backed up under the kit home and written with the version that was read (a change in between comes back as conflict), then read back and compared; replacing an existing page needs confirmed=true after the user agreed. action "append": add text to the end of an existing page (archived_to names the archive when the page rolled over).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['get', 'put', 'append'] },
+        file_key: { type: 'string', description: 'Page key such as "policies/returns".' },
+        content: { type: 'string', description: 'put: the whole page text. append: the text to add.' },
+        annotation: { type: 'string', description: 'put: one-line description shown in the index. Kept when omitted.' },
+        summary: { type: 'string', description: 'put: one-line note kept in the page history.' },
+        min_chars: { type: 'integer', minimum: 1, description: 'put: refuse content shorter than this (guards against truncated text).' },
+        confirmed: { type: 'boolean', description: 'put: required as true, after the user agreed, when the page already exists.' },
+      },
+      required: ['action', 'file_key'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     modes: ['full', 'lazy'],
   },
 ];
@@ -515,6 +537,26 @@ export class Bridge {
       }
       case 'junis_lint_instruction':
         return textResult(kit.lint(args.text, { allowedKeys: args.allowed_keys || [] }));
+      case 'junis_wiki': {
+        const fileKey = String(args.file_key || '');
+        if (args.action === 'get') return clipResult(textResult(await wikiGet(fileKey)));
+        if (args.action === 'append') return textResult(await wikiAppend(fileKey, { text: String(args.content ?? '') }));
+        if (args.action !== 'put') throw new KitError(`junis_wiki action must be get, put or append, got ${JSON.stringify(args.action)}`, { code: 'usage' });
+        // The CLI's --yes is the bridge's confirmed=true; the same rule as junis_api for PUT.
+        const flags = {
+          text: String(args.content ?? ''),
+          yes: args.confirmed === true,
+          ...(typeof args.annotation === 'string' ? { annotation: args.annotation } : {}),
+          ...(typeof args.summary === 'string' ? { summary: args.summary } : {}),
+          ...(args.min_chars !== undefined ? { min_chars: String(args.min_chars) } : {}),
+        };
+        try {
+          return textResult(await wikiPut(fileKey, flags));
+        } catch (err) {
+          if (err instanceof KitError && err.code === 'needs_confirmation') return textResult(needsConfirmation(err.message));
+          throw err;
+        }
+      }
       default:
         if (this.mode === 'lazy') {
           throw new KitError(`Unknown tool "${name}". Platform tools are called through junis_call_tool.`, { code: 'unknown_tool' });
