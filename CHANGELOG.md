@@ -8,6 +8,35 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Added
 
+- Wiki: `junis_wiki` and `wiki` gain `verify` (a person confirms a page is
+  correct today — text and version stay, its review timer restarts; hosted
+  `POST /api/external/management/wiki/verify`) and `lint` (read-only check of
+  the whole wiki — pages past their review date, broken `[[links]]`, orphans,
+  empty pages, missing annotations, oversized pages — with a `findings` count;
+  hosted `GET /api/external/management/wiki/lint`). `lint` takes no `file_key`.
+  `references/memory-and-identity.md` describes soul version history and
+  restore (`get_soul_history`, `restore_soul_version`), memory kept per
+  (user, organization), and the wiki review period.
+- Knowledge: `references/knowledge.md` gains "Live dashboards and custom
+  front-ends" — building a team's own screen on an organization's Knowledge
+  with the hosted server's new `knowledge_changes` (what changed since a
+  cursor; SSE form `GET /api/external/brain/changes/stream`),
+  `knowledge_entities_update_attrs` (state updates by type + external_id
+  with no re-import and no credits), `knowledge_map_limits` /
+  `knowledge_map_set_limits` (the map caps, with `confirm_cost`),
+  `knowledge_graph_snapshot(as_of=…)`, and the External-only OpenAPI
+  document at `GET /api/external/openapi.json`. Browser tokens
+  (`POST /api/external/brain/browser-token`, read-only, ≤15 min, bound to the
+  page origin) let the page call the read endpoints directly.
+  `knowledge_geo_near` / `knowledge_geo_within` (entities near a point or in a
+  box, from a `geo_point` attribute) and the AG-UI form of the run events
+  (`GET /api/external/sessions/<id>/events?format=agui`) for screens.
+  `knowledge_changes_webhook` / `_set` / `_delete`: a signed webhook that pushes
+  the change feed every minute (Standard Webhooks headers, secret named by an
+  Org Key).
+- `examples/live-dashboard/`: a single-file reference front-end (browser token,
+  paged first draw, SSE follow, map dots from a `geo_point` location) and the
+  platform's new `ops` knowledge-map preset it is written against.
 - `wiki get|put|append`: safe wiki page writes from the command line — empty bodies are refused, the current page is backed up under the kit home (one file per write), the write carries the version that was read (a 409 comes back as `conflict` with the backup path), and the page is read back and compared before success is reported. The Claude Code hook asks before `wiki put` like it does before `api PUT`.
 - Actions: the skill's new reference `references/actions.md` covers the
   platform's typed, approvable operations on an organization's own systems
@@ -54,6 +83,10 @@ release tags users pin with `JUNIS_KIT_REF`.
   permissions the platform offers, rather than every permission.
 
 ### Fixed
+
+- `restore_soul_version` now asks before it runs, like `update_soul_content` and `rollback_agent`: it replaces the soul or identity text for every agent of the organization.
+- `wiki verify` on a platform that does not have the route yet answers `unsupported` instead of `not_found` (which read as "the page is missing").
+- The catalogue fixture carries the hosted server's 214 tools, including `update_soul_content`'s `expected_version` and `summary`.
 
 - `tools describe <wrong name>` suggests tools by name words (`make_agent` → `create_agent`, `clone_agent`, …) instead of by description search, which stopped naming `create_agent` once the catalogue grew.
 - The catalogue fixture the tests check documentation against now carries all 202 platform tools (actions_* and knowledge_* were never checked before). `doctor` decodes the bridge's output as one UTF-8 stream.

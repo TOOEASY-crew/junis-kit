@@ -30,6 +30,8 @@ its own instruction.
 | Read one | `get_soul_content(file_key)` with `soul.md` or `identity.md` |
 | Small change | `patch_soul_content(file_key, old_string, new_string)` |
 | Full rewrite | `update_soul_content(file_key, content)` |
+| See who changed it and when | `get_soul_history(file_key)` — every change (web, API, agent tools) is a numbered version |
+| Undo a bad change | `restore_soul_version(file_key, version)` — the file becomes that version as a new version; ask the user first (every agent in the organization uses it from its next message) |
 
 - Needs the owner or admin role.
 - Braces are stored as parentheses. Read the file first and copy `old_string`
@@ -38,6 +40,10 @@ its own instruction.
   replies still show the old style, so test in a new conversation.
 - Owners and admins can also change soul and identity by asking the
   orchestrator in chat (`update_soul`, `update_identity`).
+- Version history (2026-11-10): `PUT /management/soul/<file>` accepts
+  `expected_version` (the `version` you read) and `summary`; a stale version is
+  refused with 409 `soul_version_conflict` instead of overwriting. Users restore
+  from `https://junis.ai/team/soul` (History) or with `restore_soul_version`.
 - `soul.md` is for principles: what the organization values, how to weigh
   trade-offs, what it never does. `identity.md` is for expression: tone,
   vocabulary, how to address people, language. Keep both short; they are part
@@ -51,11 +57,16 @@ its own instruction.
 | --- | --- | --- |
 | `user` (`user.md`) | The person's profile: role, preferences, standing instructions | The user, the orchestrator, or you |
 | `d0` | Lasting truths: what the user asked to remember, and one dated line of insight per day | The orchestrator (`save_to_eternal_memory`) and the nightly consolidation of the daily log |
-| `d1` | Daily log: the first 200 characters of each request and 300 of each answer | The platform, after every turn (not for anonymous website widget turns) |
+| `d1` | Daily log: the first 500 characters of each request and 800 of each answer, with the session id (the full transcript stays in the conversation and is searchable) | The platform, after every turn (not for anonymous website widget turns) |
 | `d30`, `d90`, `d365` | Monthly, quarterly, yearly summaries | The platform, on the first night of each month, quarter and year |
 
 Each orchestrator turn receives the profile, `d0`, the last two days of `d1`
 and the latest monthly, quarterly and yearly summaries.
+
+Memory is kept **per organization** (2026-11-10): a person who belongs to two
+organizations has a separate profile, `d0` and diary in each, and a turn in
+one organization never carries the other organization's conversations. The
+memory API acts in the key's organization (or the `organization_id` you pass).
 
 | Job | Tool |
 | --- | --- |
@@ -100,9 +111,10 @@ web page.
 | Way | How |
 | --- | --- |
 | Through the API (key with `wiki:read` / `wiki:manage`, owner or admin) | `api GET /management/wiki`, `GET /management/wiki/content?file_key=…`, `GET /management/wiki/search?q=…`, `PUT /management/wiki/content` `{"file_key", "content", "annotation", "expected_version", "summary"}`, `POST /management/wiki/content/append` (existing pages only), `DELETE /management/wiki/content?file_key=…` |
+| Mark a page as verified · check the wiki (2026-11-10) | `POST /management/wiki/verify` `{"file_key"}` confirms a page is correct today (the text and version stay; its review timer restarts). `GET /management/wiki/lint` lists pages past their review date, broken `[[links]]`, orphan pages (only when the wiki uses links), empty pages, pages without an annotation and pages near the size limit — no model call, nothing is changed. A page not edited or verified for the organization's review period (default 90 days, Team settings) is shown to agents as `review due`; they treat it as possibly outdated and ask the user to confirm. Pages can link to each other as `[[file_key]]`; `wiki_read` returns `links`/`backlinks`. |
 | History of a page (where Junis has version history on; `status: "disabled"` otherwise) | `GET /management/wiki/versions?file_key=…` lists versions, `GET /management/wiki/versions/content?file_key=…&version=N` one version, `GET /management/wiki/versions/diff?file_key=…&from=…&to=…` the difference, `POST /management/wiki/versions/restore` `{"file_key", "version"}` puts one back (the kit asks first), `GET /management/wiki/deleted` lists removed pages. Agents read old versions with `wiki_history` and `wiki_read(version=N)`. |
-| From an agent, safely | `junis_wiki` — `action: "get"` (content, version, sha256); `action: "put"` (refuses empty content, backs up the current page under the kit home, writes with the version it read — a change in between comes back as `conflict` — and reads back to compare; an existing page needs `confirmed=true` after the user agreed, a new page does not); `action: "append"` (existing pages; `archived_to` when the platform rolled the page over) |
-| From the command line, safely | `wiki get <file_key> [--out f]` (content, version, sha256), `wiki put <file_key> --file f\|--text=s [--annotation s] [--summary s] [--min-chars n]` — refuses an empty body, backs up the current page under the kit home (`backups/wiki/`), writes with the version it read (409 → `conflict` with the backup path), reads back and compares; replacing an existing page from an agent (no terminal) needs `--yes` after the user agrees, a new page does not — and `wiki append <file_key> --file f\|--text=s` |
+| From an agent, safely | `junis_wiki` — `action: "get"` (content, version, sha256); `action: "put"` (refuses empty content, backs up the current page under the kit home, writes with the version it read — a change in between comes back as `conflict` — and reads back to compare; an existing page needs `confirmed=true` after the user agreed, a new page does not); `action: "append"` (existing pages; `archived_to` when the platform rolled the page over); `action: "verify"` (a person checked the page today — text and version stay, the review timer restarts); `action: "lint"` (no `file_key`; the platform's check plus a `findings` count — read-only) |
+| From the command line, safely | `wiki get <file_key> [--out f]` (content, version, sha256), `wiki put <file_key> --file f\|--text=s [--annotation s] [--summary s] [--min-chars n]` — refuses an empty body, backs up the current page under the kit home (`backups/wiki/`), writes with the version it read (409 → `conflict` with the backup path), reads back and compares; replacing an existing page from an agent (no terminal) needs `--yes` after the user agrees, a new page does not — `wiki append <file_key> --file f\|--text=s`, `wiki verify <file_key>` (marks the page verified; `not_found` for a missing page) and `wiki lint` (read-only; `findings` = number of items across all lists) |
 | Through the orchestrator | Send a request: `run orchestrator "Add a wiki page 'pricing/2026' with the following content: …"` |
 | By the user | `https://junis.ai/team/wiki` |
 | By a sub-agent | Add the wiki tools it needs to its `tools` |

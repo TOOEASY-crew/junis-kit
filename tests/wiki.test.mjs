@@ -205,6 +205,49 @@ describe('wiki append', () => {
   });
 });
 
+describe('wiki verify and lint', () => {
+  test('verify posts the file key and reports the new review window; a missing page is not_found', async () => {
+    const kitHome = await loggedInHome();
+    const result = await runCli(['wiki', 'verify', 'policies/returns'], { env: mock.env(), kitHome });
+    assert.equal(result.code, 0, result.stdout);
+    assert.equal(requests('POST /management/wiki/verify').at(-1).body.file_key, 'policies/returns');
+    assert.equal(result.json.version, 3);
+    assert.equal(result.json.verified_at, '2026-11-10T00:00:00+00:00');
+    assert.equal(result.json.review_due, false);
+    assert.equal(result.json.content, undefined, 'verify does not echo the page body');
+    const missing = await runCli(['wiki', 'verify', 'nope/none'], { env: mock.env(), kitHome });
+    assert.equal(missing.code, 1);
+    assert.equal(missing.json.error, 'not_found');
+  });
+
+  test('a platform without the verify route is reported as unsupported, not as a missing page', async () => {
+    const kitHome = await loggedInHome();
+    mock.state.wikiBehavior.noVerifyRoute = true;
+    try {
+      const result = await runCli(['wiki', 'verify', 'policies/returns'], { env: mock.env(), kitHome });
+      assert.equal(result.code, 1);
+      assert.equal(result.json.error, 'unsupported', result.stdout);
+      assert.match(result.json.message, /does not have wiki verify/);
+    } finally {
+      delete mock.state.wikiBehavior.noVerifyRoute;
+    }
+  });
+
+  test('lint needs no file key and adds a findings count to the platform answer', async () => {
+    const kitHome = await loggedInHome();
+    mock.state.wiki[ORG_A]['guides/empty'] = { content: '   ', version: 1, annotation: '' };
+    const result = await runCli(['wiki', 'lint'], { env: mock.env(), kitHome });
+    assert.equal(result.code, 0, result.stdout);
+    assert.equal(requests('GET /management/wiki/lint').length, 1);
+    assert.equal(result.json.checked, Object.keys(mock.state.wiki[ORG_A]).length);
+    assert.ok(result.json.empty_pages.includes('guides/empty'));
+    assert.ok(result.json.missing_annotation.includes('guides/empty'));
+    assert.equal(result.json.findings, result.json.empty_pages.length + result.json.missing_annotation.length);
+    const noKey = await runCli(['wiki', 'verify'], { env: mock.env(), kitHome });
+    assert.equal(noKey.json.error, 'usage');
+  });
+});
+
 describe('empty text guards on every write path', () => {
   test('api PUT with an empty instruction is refused before sending', async () => {
     const kitHome = await loggedInHome();

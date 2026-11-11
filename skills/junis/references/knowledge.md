@@ -7,7 +7,8 @@ reports, product data, drawings, a database.
 
 - Two systems
 - Knowledge (Second Brain): is it on, the API, fitting the knowledge map, how
-  the graph changes, reading states, asking, limits and cost
+  the graph changes, live dashboards and custom front-ends, reading states,
+  asking, limits and cost
 - Document stores (RAG)
 - Uploading local files
 - Writing documents that search well
@@ -67,7 +68,9 @@ Connecting happens from the kit too, with the password as a stored secret name o
 `@env:` so it never passes through a model ("Connections" below).
 Putting data in from the kit: `knowledge_add_file_source(files)` (base64, ≤20 files of
 20MB each, about 15MB together per call — "Limits and cost" below)
-and `knowledge_add_url_source(url)` queue an ingest; `knowledge_sources` / `knowledge_source(source_id)`
+and `knowledge_add_url_source(url)` queue an ingest; `knowledge_add_text_source(title, content)` adds a note
+(a title and markdown text, no file — stored as one `.md` document, same pipeline; a duplicate title answers 409,
+then `mode` "replace" or "add"); `knowledge_sources` / `knowledge_source(source_id)`
 show the state (queued → reading → organizing → ready | failed) and `knowledge_source_retry(source_id)`
 re-runs a failed one; `knowledge_ingest_and_wait(files|url)` does add + poll in one call
 (≤120 s, then poll `knowledge_source`). Reading, organizing, the knowledge map (ontology) and the
@@ -176,7 +179,7 @@ Use `junis_api` or the `api` command. Paths are under `/brain`.
 | Search | `GET /brain/search?q=…` |
 | Answer with citations | `POST /brain/answer` with `{"question": "…"}` (up to 500 characters; see "Asking"); optional `"scope": "global"` for organization-wide questions, `"as_of": "YYYY-MM-DD"`, `"max_citations"` (up to 52, default 12) |
 | Trace a citation to its text and page | `GET /brain/evidence/<chunk_id>` |
-| Entities | `GET /brain/entities?q=…`, or `?type=Equipment&limit=200` for up to 200 entities of a kind (for more, `/brain/graph/snapshot?types=Equipment`); `?entity_id=<id>` adds that entity's relations and mentions (read `entity`, not `items`) |
+| Entities | `GET /brain/entities?q=…`, or `?type=Equipment&limit=200` for 200 entities of a kind and `&offset=200`, `400`, … (up to 5,000) for the rest (or `/brain/graph/snapshot?types=Equipment` in one call); `?entity_id=<id>` adds that entity's relations and mentions (read `entity`, not `items`) |
 | How two things are connected | `GET /brain/graph/path?from=…&to=…` (`max_hops` up to 10, `direction`, `predicates`, `as_of`) |
 | What surrounds one thing | `GET /brain/graph/neighbors?name=…` (`hops` 1–4, default 2; `direction` `any`, `downstream`, `upstream`, `out`, `in`; `predicates`; `limit` up to 200; `as_of`; `exclude=CL-102,CL-103` does not expand past those tags, for comparing a valve open and closed). An edge carries `qualifiers`, the values stated on that relation (for example `since: 2024-03`), only where the knowledge map declares properties on the relation and a value was read |
 | A whole kind at once: which targets it reaches through one relation, and which of its entities have none | `GET /brain/graph/around?entity_type=Line&predicate=carries` (`knowledge_graph_around`; below) |
@@ -184,7 +187,13 @@ Use `junis_api` or the `api` command. Paths are under `/brain`.
 | Documents that mention a thing | `GET /brain/graph/documents?name=…` (`hops` 0–3, default 1; `predicates`, default `contains,on_line`; `limit` up to 100) |
 | What is not yet connected | `GET /brain/links?unlinked_only=true` |
 | Overview without a model call | `GET /brain/overview` (`q=<topic>` narrows it to a topic; `entities`, `hubs`, `docs` up to 50 each). The same material `/brain/answer` uses with `"scope": "global"` |
-| Whole graph as data | `GET /brain/graph/snapshot` (up to 3,000 nodes and 10,000 edges; `meta.truncated` says when cut; `types=Equipment` for one kind) |
+| Whole graph as data | `GET /brain/graph/snapshot` (up to 3,000 nodes and 10,000 edges; `meta.truncated` says when cut; `types=Equipment` for one kind; `as_of=YYYY-MM-DD` gives the graph as it was valid then) |
+| What changed since a cursor (for a screen that stays current) | `GET /brain/changes?since=YYYY-MM-DD` then `?cursor=<returned cursor>` (`knowledge_changes`); `GET /brain/changes/stream` is the same as SSE for a server that holds a connection. Admin key. See "Live dashboards" below |
+| Update attributes of existing entities without re-importing | `PATCH /brain/entities/attrs` with `{"items": [{"type": "Unit", "external_id": "u-17", "attrs": {"location": "37.5,127.0", "status": "moving"}}]}` (`knowledge_entities_update_attrs`; up to 500, no credits, `on_missing: "skip"` to tolerate entities not imported yet) |
+| Entities near a point or inside a box (a location attribute declared with rule type `geo_point`, values "lat,lon") | `GET /brain/geo/near?lat=&lon=&radius_km=&attr=location` and `GET /brain/geo/within?bbox=south,west,north,east` (`knowledge_geo_near` / `knowledge_geo_within`; `type=` narrows the kind) |
+| Push the change feed instead of polling (a receiver that cannot hold a connection) | `PUT /brain/changes/webhook` with `{"url": "https://…", "secret_name": "<Org Key holding the signing secret>"}` (`knowledge_changes_webhook_set`); every minute the platform POSTs what changed with Standard Webhooks headers; `GET` (`knowledge_changes_webhook`) shows config and delivery status; `DELETE` removes it. The secret is named, never pasted |
+| Agent run as standard AG-UI events (RUN_*, TEXT_MESSAGE_*, TOOL_CALL_*, STEP_*, CUSTOM) | `GET /sessions/<id>/events?format=agui&wait=30` after starting the turn with `junis_run` or the chat API (the organization's event replay must be turned on by the Junis team — ask if the route answers 404 `feature_disabled`) |
+| The map caps (kinds · relations · properties per kind) | `GET /brain/ontology/limits`; `PUT /brain/ontology/limits` with `{"types", "predicates", "properties", "confirm_cost": true}` (`knowledge_map_limits` / `knowledge_map_set_limits`; admin key) |
 | Exact wiring around tags | `GET /brain/graph/subgraph?names=P-101,CL-102&hops=1` (`hops` 0–6; `box=x0,y0,x1,y1` also takes the nodes inside that area of the drawing; `page=W,H` adds pixel positions `xy_px` for a page rendered at that size) |
 | Reachability with valves closed | `GET /brain/graph/what-if?from=P-101&to=T-101&closed=CL-102,CL-103&mode=downstream` (`upstream`, `any`; `use_positions=true` also closes valves recorded as normally closed). For a pipe route that must avoid a tag, ask the orchestrator |
 | Near-identical tags (a leading 0, a zone number) | `GET /brain/graph/near-misses` |
@@ -325,7 +334,8 @@ never change a value:
   review queue.
 - `unit` is stored with the values kept per source.
 
-Presets. The only preset is `pid` (plant drawings plus operating manuals).
+Presets. There are two: `pid` (plant drawings plus operating manuals) and `ops` (assets, units, events, sensors and
+locations with a `geo_point` location, for live boards).
 
 - Preview first: `POST /brain/ontology/preset/preview` with
   `{"name": "pid", "mode": "merge"}` returns the new map (`spec`), `diff`,
@@ -359,6 +369,91 @@ Presets. The only preset is `pid` (plant drawings plus operating manuals).
   rolling back to one is done in the web app.
 - Database and JSON API sources refresh daily, web pages weekly, files only
   when uploaded again.
+
+### Live dashboards and custom front-ends
+
+A team can build its own screen — an operations room, a control tower, a
+map of assets — on top of an organization's Knowledge with the kit and the
+External API alone. The knowledge side (map, sources, imports, agents) is
+built with the tools above. The screen never holds an API key. It has a
+small server of its own that holds the key and does one of two things: it
+calls Junis on the screen's behalf, or — so the browser can call Junis
+directly — it asks `POST /api/external/brain/browser-token` (admin key,
+`origin` = the page's origin, which must be in the organization's allowed
+embed origins under Settings → Publish) for a **browser token** each time a
+page opens and hands it to the page. The page then calls the read endpoints
+itself with `Authorization: Bearer <token>` — the change stream too, read with
+`fetch()` streaming rather than `EventSource`, because a token in a URL ends up
+in access logs and the server does not accept one there. The
+token is read-only, lives at most 15 minutes, is bound to that origin and
+to the issuing key, and dies when the key is disabled or the origin is removed.
+It opens only the GET read endpoints a screen draws from (snapshot, changes and
+its stream, entities, search, overview, the map, graph neighbors/path/around/
+subgraph/documents/what-if, links, evidence); answers (`/brain/answer`),
+imports, state updates and anything that bills go through the team's server
+with the key. Chat stays with the chat widget (its own 30-minute token). Many
+visitors share the issuing key's rate limit, so browsers should hold the
+stream rather than poll `changes`.
+
+1. **Fit the map first.** The `ops` preset (`knowledge_map_apply_preset ops`)
+   is a general operations-board vocabulary — Asset, Unit, Area, Location,
+   Event, Sensor, Report, Task — with `location` already declared as
+   `geo_point`; extend it with the domain's own kinds. A map larger than the
+   defaults (12 kinds, 24 relations) needs `knowledge_map_limits` →
+   `knowledge_map_set_limits` with `confirm_cost: true` after showing the
+   user the estimate the first call returns.
+2. **Load the structure once** with `knowledge_graph_import` (an
+   `external_id` per entity — that key is how state updates find them later).
+3. **Draw once, then follow changes.** `knowledge_graph_snapshot` for the
+   first render; then `knowledge_changes` with the returned `cursor` (call
+   again at once while `has_more` is true; keep the cursor across restarts).
+   The server can instead hold `GET /api/external/brain/changes/stream`
+   (SSE: `event: changes` with the same body and `id:` = cursor; `: keepalive`
+   while quiet; `event: end` after five minutes — reconnect with the
+   `Last-Event-ID` header, which `EventSource` sends by itself). One open
+   stream counts as one request against the key's rate limit; at most 20 per
+   organization at a time.
+   A receiver that cannot hold a connection (a serverless function) registers
+   a signed webhook instead (`knowledge_changes_webhook_set`; the signing
+   secret is an Org Key the user creates in the web app — pass its name).
+   Deletions are not in the feed (a source removed, a `replace` re-import):
+   redraw from `knowledge_graph_snapshot` at each `end` or on a timer. The
+   feed never skips a slow import: its cursor stops at the oldest write still
+   in progress (`watermark` in the reply).
+4. **Push fast-changing state** with `knowledge_entities_update_attrs`:
+   positions, levels, statuses — up to 500 entities per call, no document,
+   no embedding, no credits. Only attributes declared on that kind are kept
+   (`dropped_attrs` counts the rest), values are stored as strings, the
+   newest wins. An entity that was never imported is a 422 unless
+   `on_missing: "skip"`. Updates appear in `knowledge_changes` as `updated`.
+   The search card of that entity is rebuilt at the next import, not on each
+   update; graph reads, entity reads and attribute evidence see the new
+   value at once.
+5. **Ask through the squad.** The orchestrator with `brain_*` tools answers
+   questions over the same graph (`junis_run`), and an agent `output_schema`
+   can force a JSON card the screen renders. Typed operations on outside
+   systems go through Actions ([actions.md](actions.md)).
+6. **Types for the client** come from `GET /api/external/openapi.json`
+   (API key; External routes only) — feed it to an OpenAPI client generator.
+
+7. **Map screens**: declare the location attribute with rule type
+   `geo_point` (values `"37.5665,126.9780"`), import or update it like any
+   attribute, then ask `knowledge_geo_near` / `knowledge_geo_within` for
+   "what is within 5 km" or "what is inside this box" — no model call, and
+   the browser token may call both.
+8. **Standard agent events**: a screen that uses an AG-UI client renders the
+   run from `GET /api/external/sessions/<id>/events?format=agui` (RUN_STARTED,
+   TEXT_MESSAGE_*, TOOL_CALL_*, STEP_*, RUN_FINISHED; Junis-only events such as
+   a tool confirmation arrive as `CUSTOM` named `junis.<kind>`). Start the turn
+   with the chat API, then attach to the events of the same session.
+
+A working single-file example of all of this is `examples/live-dashboard/`
+in the kit repository (token endpoint, paged first draw, SSE follow, map dots
+from `location`).
+
+What this does not give: writes or chat from the browser token (writes go
+through the team's server with the key; chat through the widget) and
+approvals — those stay with a person in the web app.
 
 ### Reading states
 

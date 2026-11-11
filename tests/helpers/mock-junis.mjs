@@ -163,6 +163,23 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
       if (state.wikiBehavior.archiveOnAppend) out.archived_to = state.wikiBehavior.archiveOnAppend;
       return send(response, 200, out);
     }
+    if (route === 'POST /management/wiki/verify') {
+      if (state.wikiBehavior.noVerifyRoute) return send(response, 404, { detail: 'Not Found' });   // an older platform
+      const existing = (state.wiki[auth.organizationId] || {})[body.file_key];
+      if (!existing) return send(response, 404, { detail: 'Wiki page not found' });
+      existing.verified_at = '2026-11-10T00:00:00+00:00';
+      return send(response, 200, { file_key: body.file_key, version: existing.version, content: existing.content, verified_at: existing.verified_at, review_due_at: '2027-02-08T00:00:00+00:00', review_due: false });
+    }
+    if (route === 'GET /management/wiki/lint') {
+      const pages = state.wiki[auth.organizationId] || {};
+      const keys = Object.keys(pages);
+      return send(response, 200, {
+        checked: keys.length, review_after_days: 90, review_due: [], broken_links: [], orphans: [], links_in_use: false,
+        empty_pages: keys.filter((key) => !String(pages[key].content || '').trim()),
+        missing_annotation: keys.filter((key) => !pages[key].annotation),
+        large_pages: [],
+      });
+    }
     if ((match = /^GET \/management\/agents\/([^/]+)\/sub-agents$/.exec(route))) return send(response, 200, []);
     if (route === 'GET /management/schedules') {
       // Like the platform: limit (default 100) and offset page the list.

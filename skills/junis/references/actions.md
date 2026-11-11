@@ -415,3 +415,5 @@ say it is done, and verify with `actions_get`.
    `actions_connection_test`, then a new draft of the same name on `cmms` with
    the HTTP executor above, a dry run, and the user's approval of version 2.
    The agent's assignment stays; the tool now calls the real system.
+
+A draft reply may carry `warnings` (only when there is one). `destructive_auto_risk` means the action's effect is destructive but its risk is `auto`, so an approved version would run without a person — tell the user and suggest `confirm` or `two_person` before they approve it. The draft is saved either way.

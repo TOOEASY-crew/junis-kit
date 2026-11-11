@@ -1,4 +1,4 @@
-// Wiki pages by file key: read, replace with a local backup, append.
+// Wiki pages by file key: read, replace with a local backup, append, mark as verified, lint the whole wiki.
 //
 // A plain `api PUT /management/wiki/content` sends whatever body it is given; a `content=@file`
 // whose file is empty, or a JSON body with `"content": ""`, stores an empty page.
@@ -18,7 +18,9 @@ import { callApi } from './kit-tools.mjs';
 
 const PAGE = '/management/wiki/content';
 const APPEND = '/management/wiki/content/append';
-const USAGE = 'Usage: wiki get <file_key> [--out path] | wiki put <file_key> --file path|--text=s [--annotation s] [--summary s] [--min-chars n] [--yes] | wiki append <file_key> --file path|--text=s';
+const VERIFY = '/management/wiki/verify';   // (2026-11-10) a person confirms the page is correct today — text and version stay, the review timer restarts
+const LINT = '/management/wiki/lint';       // (2026-11-10) deterministic check, no model call, changes nothing
+const USAGE = 'Usage: wiki get <file_key> [--out path] | wiki put <file_key> --file path|--text=s [--annotation s] [--summary s] [--min-chars n] [--yes] | wiki append <file_key> --file path|--text=s | wiki verify <file_key> | wiki lint';
 
 // The platform may normalise trailing whitespace; the comparison ignores it on both sides.
 export function sha256Stripped(text) {
@@ -163,11 +165,49 @@ export async function wikiAppend(fileKey, flags) {
   };
 }
 
+// Marks the page as verified: the body and version are untouched (nothing to back up), only the review timer restarts.
+export async function wikiVerify(fileKey) {
+  let result;
+  try {
+    result = await callApi({ method: 'POST', path: VERIFY, body: { file_key: fileKey } });
+  } catch (err) {
+    // Only "the page is missing" becomes not_found. A platform without this route also answers 404, and
+    // reporting that as a missing page would send the caller looking for a page that exists.
+    if (err instanceof KitError && err.status === 404) {
+      if (/wiki page not found/i.test(`${err.message} ${JSON.stringify(err.detail ?? '')}`)) {
+        throw new KitError(`No wiki page '${fileKey}'`, { code: 'not_found', status: 404 });
+      }
+      throw new KitError('This platform does not have wiki verify yet (POST /management/wiki/verify answered 404).', {
+        code: 'unsupported', status: 404, hint: 'Nothing was changed. The page itself may exist: read it with wiki get.',
+      });
+    }
+    throw err;
+  }
+  return {
+    file_key: fileKey,
+    version: result?.version ?? null,
+    verified_at: result?.verified_at ?? null,
+    review_due_at: result?.review_due_at ?? null,
+    review_due: result?.review_due === true,
+  };
+}
+
+// Read-only. The platform's answer is returned as is, with a one-line `findings` count so an agent can tell "clean" at a glance.
+export async function wikiLint() {
+  const result = await callApi({ method: 'GET', path: LINT });
+  const lists = ['review_due', 'broken_links', 'orphans', 'empty_pages', 'missing_annotation', 'large_pages'];
+  const findings = lists.reduce((sum, key) => sum + (Array.isArray(result?.[key]) ? result[key].length : 0), 0);
+  return { ...(result && typeof result === 'object' ? result : {}), findings };
+}
+
 export async function commandWiki({ positionals, flags }) {
   const [action, fileKey] = positionals;
-  if (!action || !fileKey) throw new KitError(USAGE, { code: 'usage' });
+  if (!action) throw new KitError(USAGE, { code: 'usage' });
+  if (action === 'lint') return wikiLint();
+  if (!fileKey) throw new KitError(USAGE, { code: 'usage' });
   if (action === 'get') return wikiGet(fileKey, { out: typeof flags.out === 'string' ? flags.out : undefined });
   if (action === 'put') return wikiPut(fileKey, flags);
   if (action === 'append') return wikiAppend(fileKey, flags);
+  if (action === 'verify') return wikiVerify(fileKey);
   throw new KitError(`Unknown wiki action "${action}". ${USAGE}`, { code: 'usage' });
 }

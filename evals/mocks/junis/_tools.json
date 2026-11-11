@@ -224,7 +224,7 @@
   },
   {
    "name": "junis_wiki",
-   "description": "One wiki page of the default organization, by file key. action \"get\": content, version, sha256. action \"put\": create or replace the whole page safely — empty content is refused, an existing page is backed up under the kit home and written with the version that was read (a change in between comes back as conflict), then read back and compared; replacing an existing page needs confirmed=true after the user agreed. action \"append\": add text to the end of an existing page (archived_to names the archive when the page rolled over).",
+   "description": "One wiki page, by file key. \"get\": content, version, sha256. \"put\": create or replace the whole page — empty content refused; an existing page is backed up under the kit home, written with the version read (a change in between = conflict) and read back; replacing an existing page needs confirmed=true after the user agreed. \"append\": add text to the end of an existing page (archived_to on rollover). \"verify\": a person checked the page today — text and version stay, the review timer restarts. \"lint\" (no file_key): read-only check of the whole wiki — review due, broken [[links]], orphans, empty pages, missing annotations, oversized pages.",
    "inputSchema": {
     "type": "object",
     "properties": {
@@ -233,12 +233,14 @@
       "enum": [
        "get",
        "put",
-       "append"
+       "append",
+       "verify",
+       "lint"
       ]
      },
      "file_key": {
       "type": "string",
-      "description": "Page key such as \"policies/returns\"."
+      "description": "Page key, e.g. \"policies/returns\" (not for lint)."
      },
      "content": {
       "type": "string",
@@ -263,8 +265,7 @@
      }
     },
     "required": [
-     "action",
-     "file_key"
+     "action"
     ],
     "additionalProperties": false
    },

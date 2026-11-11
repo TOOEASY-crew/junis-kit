@@ -22,7 +22,7 @@ function asText(value) {
 
 // Tools whose ordinary use removes or replaces data.
 export const DESTRUCTIVE_TOOL =
-  /^(delete_|remove_|unlink_|unassign_)|^knowledge_\w+_delete$|^actions_\w+_delete$|^(write_skill_file|switch_organization|update_soul_content|update_memory_content|apply_team_changes|update_mcp_platform|manage_skill_bundle|rollback_agent|set_agent_enabled_tools|set_agent_confirmation_tools|set_tool_safety|set_flag_org_opt_out|squad_apply|actions_run|actions_agent_set|actions_connection_update|actions_draft_update|actions_import_openapi|actions_import)$/;
+  /^(delete_|remove_|unlink_|unassign_)|^knowledge_\w+_delete$|^actions_\w+_delete$|^(write_skill_file|switch_organization|update_soul_content|update_memory_content|apply_team_changes|update_mcp_platform|manage_skill_bundle|rollback_agent|restore_soul_version|set_agent_enabled_tools|set_agent_confirmation_tools|set_tool_safety|set_flag_org_opt_out|squad_apply|actions_run|actions_agent_set|actions_connection_update|actions_draft_update|actions_import_openapi|actions_import)$/;
 
 // Tools that always replace or remove something, whatever their arguments
 // (each needs a reason here: a tool on the list above without one would be
@@ -30,6 +30,7 @@ export const DESTRUCTIVE_TOOL =
 const ALWAYS_DESTRUCTIVE = {
   squad_apply: 'squad_apply changes every agent the squad document differs on (create, update, sub-agents, MCP links and tool lists).',
   rollback_agent: 'rollback_agent restores an earlier version of the agent and replaces its current settings.',
+  restore_soul_version: 'restore_soul_version replaces the current soul or identity text with an earlier version, for every agent of the organization.',
   set_agent_enabled_tools: 'set_agent_enabled_tools replaces which tools of a connection the agent may use.',
   set_agent_confirmation_tools: 'set_agent_confirmation_tools replaces the list of tools that need a human confirmation; in unattended runs those tools are not run at all.',
   set_tool_safety: "set_tool_safety replaces the organization's tool safety rules for every agent.",

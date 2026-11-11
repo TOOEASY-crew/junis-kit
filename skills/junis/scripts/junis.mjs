@@ -46,6 +46,8 @@ Operate
                                      Replace a page safely: refuses an empty body, saves the current page
                                      under the kit home, writes with the version it read, reads back and compares
   wiki append <file_key> --file f|--text=s
+  wiki verify <file_key>             Mark a page as checked: restarts its review timer, body untouched
+  wiki lint                          Pages that are empty, overdue for review or hold broken [[links]]
   snapshot [--org id] [--out file]      Save an organization's squad as JSON
   snapshot list | snapshot show <file> <agent> | snapshot diff <older> <newer>
 

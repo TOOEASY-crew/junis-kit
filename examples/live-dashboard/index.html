@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live operations board</title>
+<style>
+  :root { --bg: #0f1419; --fg: #e6edf3; --muted: #8b98a5; --line: #263241; --accent: #3fb950; --warn: #f0883e; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif; }
+  header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: baseline; }
+  header b { font-size: 16px; } header span { color: var(--muted); }
+  main { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 16px; }
+  canvas { width: 100%; height: 520px; background: #0b0f14; border: 1px solid var(--line); border-radius: 8px; }
+  ul { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow: auto; }
+  li { padding: 8px 10px; border-bottom: 1px solid var(--line); } li small { color: var(--muted); }
+  li.changed { border-left: 3px solid var(--accent); }
+  #status { color: var(--muted); }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header><b>Live operations board</b><span id="status">connecting…</span></header>
+<main>
+  <canvas id="map" width="960" height="520"></canvas>
+  <ul id="feed"></ul>
+</main>
+<script>
+/* A page that draws an organization's Knowledge and keeps itself current — no server of its own in the loop except one small
+   endpoint that hands out a browser token. Steps the Junis kit reference "Live dashboards and custom front-ends" describes:
+   1. the team's server calls POST /api/external/brain/browser-token with its admin key and returns `token` to this page;
+   2. the page draws once from the entity list (kind filter + offset paging);
+   3. the page follows GET /api/external/brain/changes/stream (SSE read with fetch() so the token travels in the Authorization header,
+      never in the URL; since= then cursor= / Last-Event-ID) and applies entities as they change;
+   4. positions come from the `location` attribute ("lat,lon") declared as geo_point in the knowledge map (the `ops` preset has it). */
+const API = 'https://api.junis.ai/api';            // Junis API host
+const TOKEN_URL = '/my-junis-token';               // your server: returns {"token": "..."} from POST /api/external/brain/browser-token
+const KINDS = ['Asset', 'Unit', 'Event'];          // kinds to draw (ops preset)
+const LOCATION_ATTR = 'location';
+
+const entities = new Map();                        // id -> {name, type, lat, lon, changed}
+let token = null;
+let refreshTimer = null;
+
+async function getToken() {
+  const r = await fetch(TOKEN_URL, { credentials: 'same-origin' });
+  if (!r.ok) throw new Error('token endpoint ' + r.status);
+  token = (await r.json()).token;
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(getToken, 8 * 60 * 1000);   // tokens live ≤15 min; refresh before that (one timer, whatever triggered this)
+}
+
+async function api(path, retried) {
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401 && !retried) { await getToken(); return api(path, true); }   // one refresh, then surface the error
+  if (!r.ok) throw new Error(path + ' ' + r.status);
+  return r.json();
+}
+
+function place(e) {
+  const v = e.attrs && e.attrs[LOCATION_ATTR];
+  const m = typeof v === 'string' && v.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  return m ? { lat: Number(m[1]), lon: Number(m[2]) } : null;
+}
+
+async function drawOnce() {
+  for (const kind of KINDS) {
+    for (let offset = 0; offset < 5000; offset += 200) {
+      const page = await api(`/external/brain/entities?type=${encodeURIComponent(kind)}&limit=200&offset=${offset}`);
+      for (const e of page.items) upsert(e, false);
+      if (page.items.length < 200) break;
+    }
+  }
+  render();
+}
+
+function upsert(e, changed) {
+  const p = place(e);
+  // the entity list returns `canonical_name`; the change feed returns `name`
+  const name = e.canonical_name || e.name || e.id;
+  entities.set(e.id, { id: e.id, name, type: e.type, lat: p && p.lat, lon: p && p.lon, changed, kind: e.kind });
+}
+
+async function follow(cursor, since) {
+  // SSE over fetch(): EventSource cannot set headers and a token in the URL would land in access logs, so the token goes in the
+  // Authorization header. Start from the cursor when we have one, else from `since` (the moment before the first draw) —
+  // never from the beginning of history. Every `changes` event carries its cursor as the SSE id; `Last-Event-ID` resumes from it.
+  const from = cursor ? `&cursor=${encodeURIComponent(cursor)}` : `&since=${encodeURIComponent(since)}`;
+  const headers = { Authorization: 'Bearer ' + token, Accept: 'text/event-stream' };
+  if (cursor) headers['Last-Event-ID'] = cursor;
+  let last = cursor;
+  try {
+    const r = await fetch(`${API}/external/brain/changes/stream?interval=2` + from, { headers });
+    if (r.status === 401) { await getToken(); return follow(last, since); }
+    if (!r.ok || !r.body) throw new Error('stream ' + r.status);
+    note('live');
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = '', ev = { event: 'message', id: null, data: [] };
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).replace(/\r$/, ''); buf = buf.slice(nl + 1);
+        if (line === '') {                           // blank line = end of one event
+          if (ev.data.length) {
+            if (ev.id) last = ev.id;
+            const body = JSON.parse(ev.data.join('\n'));
+            if (ev.event === 'changes') onChanges(body);
+            else if (ev.event === 'end') { reader.cancel(); return follow(body.cursor || last, since); }   // server closes after 5 min
+          }
+          ev = { event: 'message', id: null, data: [] };
+        } else if (line.startsWith('event:')) ev.event = line.slice(6).trim();
+        else if (line.startsWith('id:')) ev.id = line.slice(3).trim();
+        else if (line.startsWith('data:')) ev.data.push(line.slice(5).replace(/^ /, ''));
+        // lines starting with ':' are keepalive comments
+      }
+    }
+  } catch (err) { note('reconnecting… ' + err.message); }
+  setTimeout(() => follow(last, since), 3000);       // resume from the last cursor seen, not from the start
+}
+
+function onChanges(body) {
+  for (const e of body.entities) {
+    if (e.kind === 'merged') { entities.delete(e.id); continue; }
+    if (KINDS.includes(e.type)) upsert(e, true);
+  }
+  render();
+  note(`${body.entities.length} entities · ${body.relations.length} relations changed`);
+}
+
+function render() {
+  const c = document.getElementById('map'), ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  const pts = [...entities.values()].filter((e) => Number.isFinite(e.lat) && Number.isFinite(e.lon));
+  if (pts.length) {
+    const lats = pts.map((p) => p.lat), lons = pts.map((p) => p.lon);
+    const minLat = Math.min(...lats) - 0.01, maxLat = Math.max(...lats) + 0.01, minLon = Math.min(...lons) - 0.01, maxLon = Math.max(...lons) + 0.01;
+    for (const p of pts) {
+      const x = ((p.lon - minLon) / (maxLon - minLon)) * (c.width - 40) + 20;
+      const y = (1 - (p.lat - minLat) / (maxLat - minLat)) * (c.height - 40) + 20;
+      ctx.fillStyle = p.changed ? '#3fb950' : p.type === 'Event' ? '#f0883e' : '#58a6ff';
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e6edf3'; ctx.font = '12px system-ui'; ctx.fillText(p.name, x + 9, y + 4);
+    }
+  }
+  const ul = document.getElementById('feed'); ul.innerHTML = '';
+  for (const e of [...entities.values()].sort((a, b) => Number(b.changed) - Number(a.changed) || a.name.localeCompare(b.name)).slice(0, 200)) {
+    const li = document.createElement('li'); li.className = e.changed ? 'changed' : '';
+    // Names and kinds come from ingested documents and imports: treat them as text, never as markup.
+    const b = document.createElement('b'); b.textContent = e.name;
+    const small = document.createElement('small');
+    small.textContent = `${e.type}${Number.isFinite(e.lat) ? ` · ${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}` : ''}`;
+    li.append(b, ' ', small);
+    ul.appendChild(li);
+  }
+}
+
+function note(text) { document.getElementById('status').textContent = text; }
+
+(async () => {
+  try {
+    await getToken();
+    const since = new Date(Date.now() - 5000).toISOString();   // taken before the first draw: changes during the draw are not missed
+    await drawOnce();
+    follow(null, since);
+  }
+  catch (err) { note('error: ' + err.message); }
+})();
+</script>
+</body>
+</html>

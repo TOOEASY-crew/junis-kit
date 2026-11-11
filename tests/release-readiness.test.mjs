@@ -443,3 +443,21 @@ describe('shipped text', () => {
     for (const readme of ['README.md', 'README.ko.md']) assert.match(fs.readFileSync(path.join(REPO, readme), 'utf8'), new RegExp(`JUNIS_KIT_REF=v${version.replace(/\./g, '\\.')}`), readme);
   });
 });
+
+describe('the live dashboard example is safe to copy', () => {
+  const html = fs.readFileSync(path.join(REPO, 'examples', 'live-dashboard', 'index.html'), 'utf8');
+
+  test('names from Knowledge are written as text, never as markup', () => {
+    // Entity names come from ingested documents and imports; the page holds a token that reads the
+    // organization's Knowledge, so interpolating them into innerHTML would run whatever a document contains.
+    assert.doesNotMatch(html, /innerHTML\s*=\s*`[^`]*\$\{/, 'no template string with values goes into innerHTML');
+    assert.doesNotMatch(html, /insertAdjacentHTML|document\.write\(/);
+    assert.match(html, /textContent\s*=\s*e\.name/);
+  });
+
+  test('the browser token stays in memory and in the Authorization header', () => {
+    assert.doesNotMatch(html, /localStorage|sessionStorage|document\.cookie/);
+    assert.doesNotMatch(html, /[?&](access_)?token=/, 'the token never goes in a URL');
+    assert.match(html, /Authorization: 'Bearer ' \+ token/);
+  });
+});

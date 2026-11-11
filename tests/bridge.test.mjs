@@ -125,8 +125,9 @@ describe('tool exposure', () => {
     const bridge = startBridge({ env: mock.env(), lazy: true });
     const list = await bridge.request('tools/list');
     assert.ok(list.result.tools.length <= 12);
-    // Budget for the kit's own tools in lazy mode. Raised from 8,000 when junis_wiki joined (one tool, three actions);
-    // the platform catalogue stays behind junis_find_tools / junis_call_tool.
+    // Budget for the kit's own tools in lazy mode. Raised from 8,000 when junis_wiki joined (one tool, now five actions —
+    // verify/lint added 2026-11-10 by tightening the description, not the budget; ~10 chars of headroom is deliberate: a new
+    // tool or a longer description must justify raising this number). The platform catalogue stays behind junis_find_tools / junis_call_tool.
     assert.ok(JSON.stringify(list.result.tools).length < 9600, 'lazy mode exists to keep tool schemas out of context');
     for (const name of ['junis_status', 'junis_find_tools', 'junis_describe_tool', 'junis_call_tool', 'junis_run', 'junis_run_status']) {
       assert.ok(list.result.tools.some((tool) => tool.name === name), `${name} is listed`);
@@ -240,6 +241,25 @@ describe('after login', () => {
     const result = await bridge.callTool('junis_api', { path: '/brain/sources' });
     assert.equal(result.isError, false);
     assert.equal(result.data.total, 1);
+    await bridge.close();
+  });
+
+  test('wiki tool marks a page verified and lints the wiki without a file key', async () => {
+    const kitHome = await loggedInHome();
+    const bridge = startBridge({ env: mock.env(), kitHome });
+    const verified = await bridge.callTool('junis_wiki', { action: 'verify', file_key: 'policies/returns' });
+    assert.equal(verified.isError, false);
+    assert.equal(verified.data.version, 3);
+    assert.equal(verified.data.verified_at, '2026-11-10T00:00:00+00:00');
+    assert.equal(mock.state.wiki[ORG_A]['policies/returns'].verified_at, '2026-11-10T00:00:00+00:00');
+    const lint = await bridge.callTool('junis_wiki', { action: 'lint' });
+    assert.equal(lint.isError, false);
+    assert.equal(lint.data.checked, 1);
+    assert.equal(lint.data.findings, 0);
+    const noKey = await bridge.callTool('junis_wiki', { action: 'verify' });
+    assert.equal(noKey.isError, true);
+    assert.equal(noKey.data.error, 'usage');
+    assert.match(String(noKey.data.message ?? ''), /needs file_key/);
     await bridge.close();
   });
 
