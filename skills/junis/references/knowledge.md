@@ -384,7 +384,12 @@ embed origins under Settings → Publish) for a **browser token** each time a
 page opens and hands it to the page. The page then calls the read endpoints
 itself with `Authorization: Bearer <token>` — the change stream too, read with
 `fetch()` streaming rather than `EventSource`, because a token in a URL ends up
-in access logs and the server does not accept one there. The
+in access logs and the server does not accept one there. The page also sends
+`X-Junis-Route: <a random string made once per page load>` on every call: the
+platform spreads browser-token requests across its servers by that value, and
+without it every viewer lands on the same server (it still works; the stream
+limit below is then counted on that one server). Never send that header with
+an API key — the request is refused with 400 `route_header_with_api_key`. The
 token is read-only, lives at most 15 minutes, is bound to that origin and
 to the issuing key, and dies when the key is disabled or the origin is removed.
 It opens only the GET read endpoints a screen draws from (snapshot, changes and

@@ -37,6 +37,10 @@ const TOKEN_URL = '/my-junis-token';               // your server: returns {"tok
 const KINDS = ['Asset', 'Unit', 'Event'];          // kinds to draw (ops preset)
 const LOCATION_ATTR = 'location';
 
+// One random value per page load, sent as X-Junis-Route on every call. The platform spreads browser-token requests across its
+// servers by this value; without it every viewer of every page lands on the same server. Never send it together with an API key.
+const ROUTE = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now();
+
 const entities = new Map();                        // id -> {name, type, lat, lon, changed}
 let token = null;
 let refreshTimer = null;
@@ -50,7 +54,7 @@ async function getToken() {
 }
 
 async function api(path, retried) {
-  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
+  const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token, 'X-Junis-Route': ROUTE } });
   if (r.status === 401 && !retried) { await getToken(); return api(path, true); }   // one refresh, then surface the error
   if (!r.ok) throw new Error(path + ' ' + r.status);
   return r.json();
@@ -85,7 +89,7 @@ async function follow(cursor, since) {
   // Authorization header. Start from the cursor when we have one, else from `since` (the moment before the first draw) —
   // never from the beginning of history. Every `changes` event carries its cursor as the SSE id; `Last-Event-ID` resumes from it.
   const from = cursor ? `&cursor=${encodeURIComponent(cursor)}` : `&since=${encodeURIComponent(since)}`;
-  const headers = { Authorization: 'Bearer ' + token, Accept: 'text/event-stream' };
+  const headers = { Authorization: 'Bearer ' + token, Accept: 'text/event-stream', 'X-Junis-Route': ROUTE };
   if (cursor) headers['Last-Event-ID'] = cursor;
   let last = cursor;
   try {

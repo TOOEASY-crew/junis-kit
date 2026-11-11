@@ -84,6 +84,9 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Fixed
 
+- `knowledge_changes_webhook_set` now asks before it runs: it sends the organization's Knowledge changes to an outside address every minute.
+- Live dashboards send `X-Junis-Route` (a random value per page load) so the platform spreads browser-token viewers across its servers instead of putting them all on one. The example page and the Knowledge reference show it.
+
 - `restore_soul_version` now asks before it runs, like `update_soul_content` and `rollback_agent`: it replaces the soul or identity text for every agent of the organization.
 - `wiki verify` on a platform that does not have the route yet answers `unsupported` instead of `not_found` (which read as "the page is missing").
 - The catalogue fixture carries the hosted server's 214 tools, including `update_soul_content`'s `expected_version` and `summary`.

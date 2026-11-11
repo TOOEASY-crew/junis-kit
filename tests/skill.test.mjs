@@ -305,6 +305,7 @@ describe('repository hygiene', () => {
       ['update_agent', { agent_id: 'x', instruction: 'whole new text' }],
       ['update_soul_content', { file_key: 'soul.md', content: 'x' }],
       ['restore_soul_version', { file_key: 'soul.md', version: 2 }],
+      ['knowledge_changes_webhook_set', { url: 'https://hooks.example/junis', secret_name: 'HOOK_SECRET' }],
       ['junis_call_tool', { name: 'delete_session', arguments: {} }],
       ['junis_api', { method: 'DELETE', path: '/brain/sources/1' }],
       ['apply_team_changes', { changes: [{ action: 'delete_agent', agent_id: 'x' }] }],

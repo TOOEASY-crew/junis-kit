@@ -12,6 +12,7 @@ What it uses (all platform features, nothing custom on the Junis side):
 | A short-lived browser token | your server: `POST /api/external/brain/browser-token` (admin key, `origin` = the page's origin) → the page gets `{token}` from `TOKEN_URL` |
 | First draw | `GET /api/external/brain/entities?type=Asset&limit=200&offset=…` for each kind (paged); items carry `canonical_name` (the change feed uses `name`) |
 | Stay current | `GET /api/external/brain/changes/stream?since=<ISO taken before the first draw>` read with `fetch()` streaming and `Authorization: Bearer` (the token never goes in the URL — `EventSource` cannot set headers, so the page parses SSE itself); every `changes` event carries its cursor as the SSE id — on `end` or an error, reconnect with `cursor=` / `Last-Event-ID` (never from the start of history) |
+| Spread across servers | every call carries `X-Junis-Route: <random, one per page load>` — browser-token requests are balanced by that value (never send it with an API key) |
 | Positions | the `location` attribute (`"lat,lon"`) declared as rule type `geo_point` — the `ops` knowledge-map preset declares it on Asset, Unit, Event, Sensor, Location |
 
 To try it:

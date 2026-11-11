@@ -460,4 +460,12 @@ describe('the live dashboard example is safe to copy', () => {
     assert.doesNotMatch(html, /[?&](access_)?token=/, 'the token never goes in a URL');
     assert.match(html, /Authorization: 'Bearer ' \+ token/);
   });
+
+  test('every call carries the route hint, and no API key header appears', () => {
+    // The platform balances browser-token requests by X-Junis-Route; a page without it puts all its viewers on one server.
+    const calls = html.match(/fetch\((?:API \+ path|`\$\{API\})[^\n]*/g) || [];
+    assert.equal(calls.length, 2, 'the entity read and the change stream');
+    assert.equal((html.match(/'X-Junis-Route': ROUTE/g) || []).length, 2, 'both calls send the hint');
+    assert.doesNotMatch(html, /X-API-Key/i, 'the hint is refused together with an API key');
+  });
 });
