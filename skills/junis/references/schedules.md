@@ -42,7 +42,7 @@ create_schedule(
 | `daily` | `{"time": "09:00"}` | |
 | `weekly` | `{"time": "09:00", "weekdays": [0, 2, 4]}` | 0 is Monday, 6 is Sunday |
 | `monthly` | `{"day": 1, "time": "09:00"}` | Months without that day are skipped |
-| `every_minutes` | `{"interval": 30}` | 1 to 60 |
+| `every_minutes` | `{"interval": 30}` | 1 to 60; at least 10 for a schedule owned by a plain member |
 | `every_hours` | `{"interval": 6}` | 1 to 24 |
 
 - All times are Korea Standard Time (UTC+9). If the user is elsewhere, convert
@@ -52,8 +52,11 @@ create_schedule(
 - Names are unique in the organization: creating with a taken name answers
   400, and renaming to one fails with a plain server error (500) whose body
   does not say why. Add a suffix (project, date).
-- Creating from here needs the owner or admin role. A member creates and
-  manages their own schedules at `https://junis.ai/team/task-planning`.
+- An owner or admin can create from here. So can a plain member whose own
+  key this is: the schedule runs as them. A member also creates and manages
+  their own schedules at `https://junis.ai/team/task-planning`, or by asking
+  the squad in chat (the orchestrator has tools for the person's own
+  schedules).
 - Defaults when the user gives none: daily at 09:00, weekly on Monday at
   09:00. Apply them and report them.
 - For squads that call models heavily, no interval under ten minutes.
@@ -178,6 +181,7 @@ the run can go on. To stop future runs, pause the schedule.
 | --- | --- |
 | Longest run | 5 hours |
 | Overlap | One run per schedule at a time; a trigger during a run is skipped |
+| Plain members | 200 running schedules each and at least 10 minutes between runs (the organization can change both in Team settings, but not below 10 minutes). Checked when creating, when changing the timing and when switching a paused schedule back on; over the limit the call answers 400 with the reason. Owners and admins have no limit. |
 | Session | New for each run by default, so earlier runs are not remembered unless results were saved to the wiki, a document store or files. Through the API, `session_config: {"use_existing_session": true, "session_id": "<a session of the creator>"}` continues one session instead; every run then pays for the growing history. |
 
 ## Changing and removing

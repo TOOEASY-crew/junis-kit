@@ -76,12 +76,10 @@ memory API acts in the key's organization (or the `organization_id` you pass).
 | Rewrite the profile | `update_memory_content("user", "user.md", content)` |
 
 - Only `user.md` can be written from here. The other tiers are read-only.
-- Without `user_id` the key owner's own memory is meant. Another person's
-  memory is reachable only for accounts the organization provisioned, with the
-  partner key and `junis_api`: `GET /management/memory/directory?user_id=<id>`,
-  `GET /management/memory/<type>/<file_key>?user_id=<id>`, and for the profile
-  `PUT /management/memory/user/user.md` or `POST …/patch` with `user_id` in the
-  body ([partner-accounts.md](partner-accounts.md)).
+- Memory is the key owner's own. Leave `user_id` out: another person's id is
+  refused with 403 `memory_target_not_self`, also for accounts the organization
+  provisioned and also with a partner key. Someone else's memory changes only
+  through their own conversation with the squad.
 - Pass arguments by name. The third positional argument of
   `patch_memory_content` is `replace_all`.
 - File keys: `user.md`, `memory_d0.md`, `memory_YYYYMMDD.md`,
@@ -121,7 +119,21 @@ web page.
 
 - Wiki tools work only when the acting user is an owner or admin of the
   organization; otherwise they answer `denied`. A scheduled run acts as the
-  schedule's creator.
+  schedule's creator. One exception: where an owner or admin switched on
+  "Members can read the organization wiki" in Team settings, the four reading
+  tools (`wiki_list`, `wiki_read`, `wiki_search`, `wiki_history`) also work
+  for members and for accounts the organization made. Writing stays with
+  owners and admins.
+- Personal pages: where the organization has personal wiki on, a key that
+  belongs to a person (any role) reaches that person's own pages by writing
+  the key as `@me/<key>` in the same calls (`GET /management/wiki/content?
+  file_key=@me/notes`, `wiki get @me/notes`, `junis_wiki`). `GET
+  /management/wiki` then lists them next to the shared pages, or alone for a
+  plain member. Nobody else can open them, an owner included; an organization
+  key gets 403 `personal_wiki_requires_user_key`, and 409
+  `personal_wiki_disabled` means the organization has the feature off. The one
+  exception is reading the pages of an account the organization made
+  ([partner-accounts.md](partner-accounts.md)).
 - Keys are paths such as `pricing/2026`, without leading or trailing slash and
   without `..`. Each page has a one-line annotation, which is what agents see
   in the index, so write it as a description of when to read the page.

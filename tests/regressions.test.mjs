@@ -380,6 +380,19 @@ describe('error hints lead with the cheapest fix', () => {
     assert.ok(hint.indexOf('Add permissions') < hint.indexOf('new key'), hint);
   });
 
+  test('a permission only organization keys can hold is not answered with "Add permissions"', () => {
+    // The platform refuses these six for personal keys, so pointing the user at "Add permissions" sends them to a dead end.
+    for (const scope of ['usage:read', 'wiki:read_delegated', 'users:delegate', 'users:provision', 'sessions:delete', 'users:credentials']) {
+      const { code, hint } = explainError(`403 {"detail":{"error":"insufficient_scopes","missing_scopes":["${scope}"]}}`);
+      assert.equal(code, 'insufficient_scopes');
+      assert.match(hint, new RegExp(scope));
+      assert.match(hint, /organization key \(jns_live_\)/);
+      assert.doesNotMatch(hint, /Add permissions/, hint);
+    }
+    assert.match(explainError('403 {"missing_scopes":["usage:read"]} insufficient_scopes').hint, /the owner must create it/);
+    assert.doesNotMatch(explainError('403 {"missing_scopes":["users:delegate"]} insufficient_scopes').hint, /the owner must create it/);
+  });
+
   test('a missing Actions permission gets the same two fixes, without promising what an older platform cannot give', () => {
     // Browser login asks for the Actions permissions only where the platform offers them (it retries without
     // them otherwise), so the hint must not say that logging in again always grants every permission.

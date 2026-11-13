@@ -8,6 +8,21 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Added
 
+- Partner accounts (`references/partner-accounts.md`): deleting an account the
+  organization made (`DELETE /api/external/management/users/<user_id>`, 30-day
+  grace period, `…/deletion/cancel`), reading the accounts' usage by period
+  (`GET /api/external/management/usage`, scope `usage:read`, a key the owner
+  created), reading an account's personal wiki pages with `on_behalf_of`
+  (scope `wiki:read_delegated`), the separate rate limit for `on_behalf_of`
+  chats, and the `active` field of the account list.
+- Wiki (`references/memory-and-identity.md`): a person's own pages as
+  `@me/<key>` with their own key, and the organization setting that lets
+  members read the shared wiki through agents.
+- Schedules (`references/schedules.md`, `references/agent-tools.md`): a member
+  creates schedules with their own key, the limits for plain members (200
+  running schedules, 10 minutes apart at least), and the five tools the
+  orchestrator now has for the schedules of the person chatting.
+
 - Wiki: `junis_wiki` and `wiki` gain `verify` (a person confirms a page is
   correct today — text and version stay, its review timer restarts; hosted
   `POST /api/external/management/wiki/verify`) and `lint` (read-only check of
@@ -69,6 +84,15 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Changed
 
+- `on_behalf_of` runs are for accounts the organization made only; a real
+  member is refused (403 `delegation_target_not_provisioned`). The references
+  no longer say otherwise.
+- Memory is the key owner's own: the references no longer describe reading or
+  writing the memory of an account the organization made (now 403
+  `memory_target_not_self`).
+- `references/user-steps.md`: full erasure of a person is done by the owner or
+  an admin at Team → Compliance, exporting another person's data is owner-only.
+
 - A write whose body sets `instruction` or `content` to an empty string is refused before it leaves the kit, on every path: `api`, `tools call` and the MCP bridge (`junis_api`, `junis_call_tool`). Typical cause: `instruction=@file` with a file that was never written.
 - `api --file` with a missing or empty payload file is now a clear `file_not_found` / `empty_payload` error (before: a raw ENOENT or a generic `bad_json`).
 - `actions_run` is given 420 seconds before the kit reports a timeout, because
@@ -84,12 +108,18 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Fixed
 
+- The hint for a missing permission no longer points at "Add permissions" when
+  the permission is one only organization keys can hold (`usage:read`,
+  `wiki:read_delegated`, `users:delegate`, `users:provision`,
+  `sessions:delete`, `users:credentials`): it says an organization key is
+  needed and who creates it.
 - `knowledge_changes_webhook_set` now asks before it runs: it sends the organization's Knowledge changes to an outside address every minute.
 - Live dashboards send `X-Junis-Route` (a random value per page load) so the platform spreads browser-token viewers across its servers instead of putting them all on one. The example page and the Knowledge reference show it.
 
 - `restore_soul_version` now asks before it runs, like `update_soul_content` and `rollback_agent`: it replaces the soul or identity text for every agent of the organization.
 - `wiki verify` on a platform that does not have the route yet answers `unsupported` instead of `not_found` (which read as "the page is missing").
 - The catalogue fixture carries the hosted server's 214 tools, including `update_soul_content`'s `expected_version` and `summary`.
+- The catalogue fixture follows the hosted server's 2.3.3: the memory tools are described as the key owner's own, the schedule tools state the limits for plain members, and `apply_team_changes` carries its action shapes in the `changes` argument.
 
 - `tools describe <wrong name>` suggests tools by name words (`make_agent` → `create_agent`, `clone_agent`, …) instead of by description search, which stopped naming `create_agent` once the catalogue grew.
 - The catalogue fixture the tests check documentation against now carries all 202 platform tools (actions_* and knowledge_* were never checked before). `doctor` decodes the bridge's output as one UTF-8 stream.

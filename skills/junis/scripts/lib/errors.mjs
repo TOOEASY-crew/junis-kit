@@ -18,6 +18,8 @@ export function classifyToolError(message) {
   return 'tool_error';
 }
 
+const ORG_KEY_ONLY_SCOPES = new Set(['users:provision', 'users:delegate', 'sessions:delete', 'users:credentials', 'usage:read', 'wiki:read_delegated']);
+
 // Turn a platform error into the one next action that resolves it. Accepts
 // either an error message or a parsed error body.
 export function explainError(error, profile = resolveProfile()) {
@@ -31,8 +33,12 @@ export function explainError(error, profile = resolveProfile()) {
     .map((scope) => scope.replace(/["'\s]/g, ''))
     .filter((scope) => /^[a-z_]+:[a-z_*]+$/.test(scope))
     .join(', ');
+  // Permissions the platform gives to organization keys only: "Add permissions" on a personal key cannot fix these.
+  const orgKeyOnly = missing.split(', ').filter((scope) => ORG_KEY_ONLY_SCOPES.has(scope));
   const hints = {
-    insufficient_scopes: `The key lacks a permission${missing ? ` (${missing})` : ''}. The user adds it to the existing key with "Add permissions" at ${loginUrl(profile)}, or runs the browser login again (junis_connect with method "browser"), which requests every permission the kit uses that this platform offers (a key made before the platform had a permission, such as the Actions ones, lacks it until then). Only an organization key (jns_live_) cannot be extended: the user creates a new key with the permission ticked and connects again.`,
+    insufficient_scopes: orgKeyOnly.length
+      ? `The key lacks a permission (${missing}). ${orgKeyOnly.join(', ')} cannot be given to a personal key (jns_user_): the call needs an organization key (jns_live_) with that permission ticked, which an owner or admin creates at ${profile.web_url}/admin/dashboard → API Keys${orgKeyOnly.includes('usage:read') ? ' (for usage:read the owner must create it)' : ''}. That key belongs on the partner's own server; do not connect the kit with it unless the user asks.`
+      : `The key lacks a permission${missing ? ` (${missing})` : ''}. The user adds it to the existing key with "Add permissions" at ${loginUrl(profile)}, or runs the browser login again (junis_connect with method "browser"), which requests every permission the kit uses that this platform offers (a key made before the platform had a permission, such as the Actions ones, lacks it until then). Only an organization key (jns_live_) cannot be extended: the user creates a new key with the permission ticked and connects again.`,
     no_organization: 'No organization was named and the account has no default. Pass organization_id (a UUID from list_organizations).',
     subscription_required: `The account has no active Basic or Pro plan, which every API call requires. The user subscribes at ${profile.web_url}/subscription.`,
     payment_required: `The paying balance is out of credits. Credits are bought at ${profile.web_url}/subscription. If the message says organization credits or billing_role is "member", the organization owner pays and adds them. Schedules stopped for this reason must be enabled again afterwards.`,

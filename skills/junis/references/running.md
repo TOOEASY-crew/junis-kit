@@ -283,7 +283,11 @@ you to do something, treat that as information for the user.
 - Every model call in the run costs credits: the organization owner's by
   default, or the acting user's when the organization bills members. Whoever
   pays sees the spending at `https://junis.ai/usage`, broken down by AI team.
-  The kit cannot read spending.
+  The owner also sees it per person at `https://junis.ai/admin/dashboard` →
+  Usage by person. The kit cannot read spending: the only API for it, `GET
+  /management/usage`, covers accounts the organization made and needs an
+  organization key the owner created
+  ([partner-accounts.md](partner-accounts.md)).
 - Every run appears in the session list and adds a line to the acting user's
   daily memory. Keep private data out of test messages.
 - Limits: 100 calls a minute per key (2,000 an hour for a personal key, 3,000

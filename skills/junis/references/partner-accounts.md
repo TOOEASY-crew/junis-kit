@@ -27,9 +27,15 @@ needs the user's agreement and `confirmed=true`.
 
 For the app's own server code: the base URL is `https://api.junis.ai/api/external`
 (`api_base` in `junis_status`) and the key goes in the header `X-API-Key: <key>`,
-not `Authorization: Bearer`. All accounts share the partner key's limits: 100
-calls a minute and 3,000 an hour, plus the organization's 300 a minute across
-all its keys. A 429 carries `Retry-After`.
+not `Authorization: Bearer`. The partner key's ordinary limits are 100 calls a
+minute and 3,000 an hour, plus the organization's 300 a minute across all its
+keys. Chat calls sent with `on_behalf_of` for an account the organization made
+are counted apart from those: they share 6,000 a minute for the whole
+organization (response header `X-RateLimit-Scope: delegated`), unless Junis or
+the key's owner set a lower limit on purpose. Session reads, warm-up and
+management calls stay on the ordinary limits, and so does a call refused
+because its target is not one of the organization's accounts. A 429 carries
+`Retry-After`.
 
 ## The key
 
@@ -95,9 +101,13 @@ make a new one.
   Do not send again: check `GET /sessions/<id>/status?on_behalf_of=<user_id>`
   and read the messages.
 - Every run is billed to the key owner.
-- Schedules run as the person who created them, never as these accounts. For
-  a recurring job per account, the app's own scheduler makes the call with
-  `on_behalf_of`.
+- The API cannot create a schedule in an account's name: `POST
+  /management/schedules` makes it run as the key owner. For a recurring job per
+  account, the app's own scheduler makes the call with `on_behalf_of`. An
+  account can still ask the squad in its own conversation ("send me this every
+  morning"): the orchestrator then creates a schedule that runs as that
+  account, within the member limits (200 running schedules, 10 minutes apart
+  at least), and its usage is settled with the organization like its chats.
 
 ### What comes back
 
@@ -122,19 +132,43 @@ make a new one.
 - Deleting is permanent. To remove all of a person's conversations, list with
   `include_hidden=true`, page until `has_next` is false, delete each.
 - Deleting sessions leaves the account, its memory, its stored credentials,
-  published pages and usage records. Erasing a person entirely is a request to
-  `contact@junis.ai`.
-- The person's memory ([memory-and-identity.md](memory-and-identity.md)) is
-  read with this key: `GET /management/memory/directory?user_id=<user_id>`,
-  then `GET /management/memory/<type>/<file_key>?user_id=<user_id>`. The
-  profile is written with `PUT /management/memory/user/user.md` and
-  `{"content": "…", "user_id": "<user_id>"}`, or edited with
-  `POST /management/memory/user/user.md/patch` and `{"old_string": "…",
-  "new_string": "…", "user_id": "<user_id>"}`. The key's creator must be an
-  owner or admin, and the key must hold `users:delegate`. Writing also needs
-  `sessions:manage`, which this key has only if it was picked when it was
-  created. The memory tools, which use the user's own key, cannot reach these
-  accounts.
+  published pages and usage records.
+- To erase an account the organization made, delete the account itself:
+  `DELETE /management/users/<user_id>` (scope `users:provision`, a key made by
+  an owner or admin; say what it does and get the user's agreement first). It
+  answers `{"status": "scheduled", "erase_at": "…", "deactivated": true}`:
+  the account is switched off at once (its `on_behalf_of` calls get 403, its
+  schedules stop, its connection links are revoked) and after the grace period
+  (`erase_at`, 30 days) its conversations, memory, personal wiki pages,
+  credentials and schedules are erased. Usage records stay. Inside the grace
+  period `POST /management/users/<user_id>/deletion/cancel` switches it back
+  on, along with the schedules that were paused. Sending the delete again
+  returns the same `erase_at`. While switched off, `POST /management/users`
+  for its email returns `delegable: false`, `active: false`, and
+  `GET /management/users` lists it with `active: false`. A real person's
+  account is erased by an owner at `https://junis.ai/team/compliance`, not
+  through this API (403).
+- Usage of the accounts, by period: `GET /management/usage?start=2026-11-01&
+  end=2026-12-01` (add `user_id=<id>` for one account). It needs the scope
+  `usage:read` on an organization key **made by the organization owner** (an
+  admin's key gets 403; the kit's own key cannot hold this scope). It returns
+  `totals`, `by_origin` (`conversation`, `schedule`, `other`) and per account
+  `items` with `kind` (`model` or `tool`), `name`, tokens and
+  `junis_settlement_amount` in USD. Each chat response also carries
+  `credit_usage` for that one request: `credit_cost`, `input_tokens`,
+  `output_tokens` and `items`.
+- The person's memory ([memory-and-identity.md](memory-and-identity.md))
+  cannot be read or written with this key, or with any key but the person's
+  own: `GET`/`PUT /management/memory/…` with another account's `user_id`
+  answers 403 `memory_target_not_self`. An account's memory changes only
+  through its own conversations (the orchestrator's memory tools).
+- The account's personal wiki pages can be read, not written, with this key:
+  `GET /management/wiki?on_behalf_of=<user_id>` lists them and
+  `GET /management/wiki/content?file_key=@me/<key>&on_behalf_of=<user_id>`
+  reads one. The key needs `wiki:read`, `wiki:read_delegated` and
+  `users:delegate`; `wiki:read_delegated` is picked when the key is created
+  and cannot be given to a user's own key. Each read is recorded in the
+  organization's audit log.
 
 ## Credentials and connection links
 
@@ -168,7 +202,9 @@ be stored for someone; the person must approve them.
 ## Rules the platform enforces
 
 - Billing never moves: every call is charged to the key owner.
-- Reading and deleting work only for accounts this organization made. Running
-  with `on_behalf_of` also works for real members of the organization.
+- Running, reading and deleting with `on_behalf_of` work only for accounts
+  this organization made. A real member of the organization is refused (403
+  `delegation_target_not_provisioned`), and so is an account its owner later
+  signed in to.
 - Credentials can be written but not read, by anyone.
 - The key belongs on the app's server only, never in a browser or mobile app.

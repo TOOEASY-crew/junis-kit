@@ -146,6 +146,8 @@ describe('reference files', () => {
       'list_custom_apis', 'list_processes', 'list_device_mcp_tools', 'update_orchestrator', 'update_user_memory',
       'update_soul', 'update_identity', 'delete_thread', 'get_products', 'create_pull_request', 'link_mcp', 'link_composio', 'link_device',
       'retry_after', 'add_objective',
+      // The orchestrator's own-schedule tools (2026-11-12): tools of agents inside Junis, not in the MCP catalogue.
+      'list_my_schedules', 'create_my_schedule', 'update_my_schedule', 'delete_my_schedule',
     ]);
     // actions_* and knowledge_* were never checked against the catalogue before (2026-11-09 review); search_* stays out because
     // the built-in agent tools (search_mcp_tool, search_rag_documents, search_conversations) share that prefix

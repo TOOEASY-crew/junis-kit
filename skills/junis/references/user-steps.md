@@ -30,7 +30,8 @@ passing the id.
 | See spending | Whoever pays sees it at `https://junis.ai/usage`, broken down by AI team: the owner by default, or each member when the organization bills members. `https://junis.ai/admin/dashboard` → Usage shows adoption and activity, not cost. |
 | Model prices | `https://junis.ai/subscription` → Model Token Pricing |
 | See and edit their memory (Basic or Pro) | `https://junis.ai/memory`; editing there may be switched off, `patch_memory_content` always works for the profile |
-| Feature flags, monthly spending cap, full erasure of a person | Junis staff: `contact@junis.ai` |
+| Full erasure of a person | The organization owner or an admin at `https://junis.ai/team/compliance` (30-day grace period, can be cancelled). An account the organization made through the API: `DELETE /management/users/<user_id>` ([partner-accounts.md](partner-accounts.md)). |
+| Feature flags, monthly spending cap | Junis staff: `contact@junis.ai` |
 
 ## Organization and team
 
@@ -42,7 +43,7 @@ passing the id.
 | Accept an invitation | the invitee signs in at junis.ai with the invited address and chooses **Accept** on the invitation Junis shows (or **Decline**); an invitation never activates on its own |
 | Rename, logo, delete the organization (rename and delete: owner only); who pays; allowed email domains and auto-join; welcome suggestions; setup guide; sign-in session length; clear history; Slack workspaces | `https://junis.ai/admin/dashboard` → Settings |
 | Organization API keys, including "Connect users from my own app" for partner accounts | `https://junis.ai/admin/dashboard` → API Keys |
-| Audit log; member data export and scheduled erasure (runs only where Junis has enabled it) | `https://junis.ai/team/audit`, `https://junis.ai/team/compliance` |
+| Audit log; member data export (another person's data: the owner only; an admin can export their own) and scheduled erasure (runs only where Junis has enabled it) | `https://junis.ai/team/audit`, `https://junis.ai/team/compliance` |
 
 ## Connections and credentials
 
