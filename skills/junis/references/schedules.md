@@ -181,7 +181,7 @@ the run can go on. To stop future runs, pause the schedule.
 | --- | --- |
 | Longest run | 5 hours |
 | Overlap | One run per schedule at a time; a trigger during a run is skipped |
-| Plain members | 200 running schedules each and at least 10 minutes between runs (the organization can change both in Team settings, but not below 10 minutes). Checked when creating, when changing the timing and when switching a paused schedule back on; over the limit the call answers 400 with the reason. Owners and admins have no limit. |
+| Plain members | 200 running schedules each and at least 10 minutes between runs (the organization can change both in Team settings, but not below 10 minutes). Checked when creating, when changing the timing and when switching a paused schedule back on; over the limit the call answers 400 with the reason. Owners and admins have no limit in the web app and through the API; when the squad creates a schedule for them in chat, the default limits (200, 10 minutes) apply to them too. |
 | Session | New for each run by default, so earlier runs are not remembered unless results were saved to the wiki, a document store or files. Through the API, `session_config: {"use_existing_session": true, "session_id": "<a session of the creator>"}` continues one session instead; every run then pays for the growing history. |
 
 ## Changing and removing

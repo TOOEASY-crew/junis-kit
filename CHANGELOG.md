@@ -87,9 +87,10 @@ release tags users pin with `JUNIS_KIT_REF`.
 - `on_behalf_of` runs are for accounts the organization made only; a real
   member is refused (403 `delegation_target_not_provisioned`). The references
   no longer say otherwise.
-- Memory is the key owner's own: the references no longer describe reading or
-  writing the memory of an account the organization made (now 403
-  `memory_target_not_self`).
+- Memory: a real person's memory is their own (another person's id is 403
+  `memory_target_not_self`). An account the organization made is still read
+  and written with the partner key, as before; the references say which key
+  that takes.
 - `references/user-steps.md`: full erasure of a person is done by the owner or
   an admin at Team → Compliance, exporting another person's data is owner-only.
 
@@ -119,7 +120,7 @@ release tags users pin with `JUNIS_KIT_REF`.
 - `restore_soul_version` now asks before it runs, like `update_soul_content` and `rollback_agent`: it replaces the soul or identity text for every agent of the organization.
 - `wiki verify` on a platform that does not have the route yet answers `unsupported` instead of `not_found` (which read as "the page is missing").
 - The catalogue fixture carries the hosted server's 214 tools, including `update_soul_content`'s `expected_version` and `summary`.
-- The catalogue fixture follows the hosted server's 2.3.3: the memory tools are described as the key owner's own, the schedule tools state the limits for plain members, and `apply_team_changes` carries its action shapes in the `changes` argument.
+- The catalogue fixture follows the hosted server's 2.3.4: the memory tools say whose memory a key can reach (the key owner's own, or an account the organization made with an organization key), the schedule tools state the limits for plain members, and `apply_team_changes` carries its action shapes in the `changes` argument. The hosted server now accepts ids that are not ASCII (an orchestrator's id is made from the organization's name).
 
 - `tools describe <wrong name>` suggests tools by name words (`make_agent` → `create_agent`, `clone_agent`, …) instead of by description search, which stopped naming `create_agent` once the catalogue grew.
 - The catalogue fixture the tests check documentation against now carries all 202 platform tools (actions_* and knowledge_* were never checked before). `doctor` decodes the bridge's output as one UTF-8 stream.

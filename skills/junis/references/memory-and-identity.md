@@ -77,9 +77,13 @@ memory API acts in the key's organization (or the `organization_id` you pass).
 
 - Only `user.md` can be written from here. The other tiers are read-only.
 - Memory is the key owner's own. Leave `user_id` out: another person's id is
-  refused with 403 `memory_target_not_self`, also for accounts the organization
-  provisioned and also with a partner key. Someone else's memory changes only
-  through their own conversation with the squad.
+  refused with 403 `memory_target_not_self`, and a real person's memory
+  changes only through their own conversation with the squad. The one
+  exception is an account the organization provisioned, reached with the
+  partner key and `junis_api`: `GET /management/memory/directory?user_id=<id>`,
+  `GET /management/memory/<type>/<file_key>?user_id=<id>`, and for the profile
+  `PUT /management/memory/user/user.md` or `POST …/patch` with `user_id` in the
+  body ([partner-accounts.md](partner-accounts.md)).
 - Pass arguments by name. The third positional argument of
   `patch_memory_content` is `replace_all`.
 - File keys: `user.md`, `memory_d0.md`, `memory_YYYYMMDD.md`,

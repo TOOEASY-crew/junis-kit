@@ -157,11 +157,19 @@ make a new one.
   `junis_settlement_amount` in USD. Each chat response also carries
   `credit_usage` for that one request: `credit_cost`, `input_tokens`,
   `output_tokens` and `items`.
-- The person's memory ([memory-and-identity.md](memory-and-identity.md))
-  cannot be read or written with this key, or with any key but the person's
-  own: `GET`/`PUT /management/memory/…` with another account's `user_id`
-  answers 403 `memory_target_not_self`. An account's memory changes only
-  through its own conversations (the orchestrator's memory tools).
+- The account's memory ([memory-and-identity.md](memory-and-identity.md)) is
+  read with this key: `GET /management/memory/directory?user_id=<user_id>`,
+  then `GET /management/memory/<type>/<file_key>?user_id=<user_id>`. The
+  profile is written with `PUT /management/memory/user/user.md` and
+  `{"content": "…", "user_id": "<user_id>"}`, or edited with
+  `POST /management/memory/user/user.md/patch` and `{"old_string": "…",
+  "new_string": "…", "user_id": "<user_id>"}`. The key must be an
+  organization key made by an owner or admin and hold `users:delegate`;
+  writing also needs `sessions:manage`, which this key has only if it was
+  picked when it was created. Only accounts this organization made can be
+  reached: a real person's id answers 403 `memory_target_not_self`, and so
+  does any id sent with a person's own key. The memory tools, which use the
+  user's own key, cannot reach these accounts.
 - The account's personal wiki pages can be read, not written, with this key:
   `GET /management/wiki?on_behalf_of=<user_id>` lists them and
   `GET /management/wiki/content?file_key=@me/<key>&on_behalf_of=<user_id>`
