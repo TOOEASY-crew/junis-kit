@@ -8,6 +8,26 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Added
 
+- OAuth apps (`references/connections.md`, "Choosing an app's tools"): choose
+  an app's tools when linking it. The hosted server's new
+  `list_composio_integration_tools(auth_config_id, search, limit)` returns
+  the exact names, `link_agent_composio` takes `enabled_tools`, and the
+  results name entries that match nothing (`unknown_tools`) or a large
+  toolkit linked whole (`warning`). Without a selection every tool of the app
+  is sent on every model call (measured 2026-11-15: Gmail 63, Slack 174,
+  Higgsfield MCP 101, ElevenLabs 396). Apps connected with the user's own API
+  key (`auth_scheme` `API_KEY` / `BEARER_TOKEN`) are connected on the same
+  web page as OAuth apps. Needs the hosted server 2.4.0; until then the list
+  is `junis_api GET /management/composio/integrations/<id>/tools`.
+- Generated media (`references/agent-tools.md`): an agent with `gen_content`
+  also has `replicate_search_models` and `replicate_model_schema`; the order
+  for an unfamiliar or new model (search, schema, run), pinned versions
+  (`owner/name:version_hash`), community models, calls refused before any
+  credit is charged (`reason`, `input_schema`), and the default price of
+  1 credit for a model without a registered price.
+- The `connects-an-oauth-app` eval case checks that the app's tools are
+  listed before linking and that the link carries a selection (not yet run).
+
 - Partner accounts (`references/partner-accounts.md`): deleting an account the
   organization made (`DELETE /api/external/management/users/<user_id>`, 30-day
   grace period, `…/deletion/cancel`), reading the accounts' usage by period
@@ -108,6 +128,18 @@ release tags users pin with `JUNIS_KIT_REF`.
   permissions the platform offers, rather than every permission.
 
 ### Fixed
+
+- `references/connections.md`, `agent-tools.md`, `build-and-verify.md`:
+  `get_agent_tool_access` shows the saved selection of a link, not the tools
+  an app has; a selection stores the app's own tool names (`GMAIL_SEND_EMAIL`),
+  not the `composio_` name the agent sees; the list of apps is no longer cut
+  by a large logo, so that workaround is gone; categories of apps are free
+  text, not a fixed set; a squad file's `composio` list is about apps linked
+  to the agent, whether or not the user has authorized them yet; a model slug
+  for `gen_content` is checked before credits are charged; the Replicate MCP
+  platform is inactive and not a route.
+- Eval mocks: an app's `id` in `list_composio_integrations` is a UUID, as on
+  the platform (it was `ac_…`).
 
 - The hint for a missing permission no longer points at "Add permissions" when
   the permission is one only organization keys can hold (`usage:read`,

@@ -20,6 +20,7 @@ that needs the user's login, a key for an HTTP API, or the user's own computer.
 | --- | --- |
 | Already listed by `list_mcp_platforms` | Link that platform |
 | Acts on a person's own account (mail, calendar, drive, social media) | OAuth app, if `list_composio_integrations` has it |
+| Is an app in `list_composio_integrations` that takes the user's own API key (`auth_scheme` `API_KEY` or `BEARER_TOKEN`) | The same list and the same steps; the user pastes the key in the web app |
 | Has a bot token or service key and an MCP server | MCP platform |
 | Is a plain HTTP API with a key | Secret plus `custom_api_call` |
 | Is the organization's own system, where an agent must perform a fixed operation (above all a write) that a person approves | An action on an Actions connection ([actions.md](actions.md)) |
@@ -204,24 +205,62 @@ lacks permission.
 
 ### Steps
 
-1. `list_composio_integrations` without a category. Each entry's `id` is the
-   `auth_config_id`. The result can be cut ("truncated … characters"): the
-   list carries logos, and one large logo hides every app after it. Then read
-   the full list with `junis_api GET /management/composio/integrations`
-   (command: `api GET /management/composio/integrations`) and work from
-   `toolkit_slug`; filtering by `category` does not help when the large entry
-   is in that category. Slack is listed as `slack` (a person's account) and
-   `slackbot` (a bot token), category "team chat".
-2. `link_agent_composio(agent_id, auth_config_id, is_required)`. Use
-   `is_required=true` when the agent cannot do its job without it. A 409 means
-   it was already linked.
-3. Tell the user: open `https://junis.ai/team/integrations`, press connect on
-   the named app, and approve.
-4. When they return: `list_composio_connections` shows each connection with
+1. `list_composio_integrations` without a category. Each entry's `id` (a
+   UUID) is the `auth_config_id`; work from `toolkit_slug`. Categories are
+   free text written when an app is registered ("team chat", "analytics",
+   "marketing", "database", …), not a fixed set: filter only by a value the
+   full list returned. Slack is listed as `slack` (a person's account) and
+   `slackbot` (a bot token). Junis registers the apps; one that is missing
+   cannot be added from here (see "When nothing fits").
+2. Choose the tools the agent needs: "Choosing an app's tools" below.
+3. `link_agent_composio(agent_id, auth_config_id, is_required, enabled_tools)`.
+   Use `is_required=true` when the agent cannot do its job without it. A 409
+   means it was already linked. Pass on a `warning` or `unknown_tools` in the
+   result.
+4. Tell the user what to do at `https://junis.ai/team/integrations`, by the
+   entry's `auth_scheme`: `OAUTH2`: press connect on the named app and
+   approve. `API_KEY` or `BEARER_TOKEN` (ElevenLabs, for example): press
+   connect and paste their own key there. Never ask for the key in the
+   conversation; no tool starts a connection.
+5. When they return: `list_composio_connections` shows each connection with
    its status. `get_agent_composio_status(agent_id)` shows what the agent still
    lacks.
-5. Test in a new session. Tools of a connection exist only in sessions started
+6. Test in a new session. Tools of a connection exist only in sessions started
    after it became active.
+
+### Choosing an app's tools
+
+Linked without a selection, an app gives the agent its whole toolkit, and all
+of it is described to the model on every call. Measured with no selection
+(2026-11-15): Gmail 63 tools, Slack 174, Higgsfield MCP 101 (about 194,000
+characters of tool declarations per call), ElevenLabs 396 (about 898,000).
+The agent gets slow, costly and worse at choosing. So choose when linking:
+
+1. `list_composio_integration_tools(auth_config_id, search="send email")`
+   returns `tools` as `{name, description}`. `search` keeps the tools whose
+   name or description holds every word. When `large` is true (more than 30
+   tools) search instead of reading everything; `limit` is 100 by default and
+   500 at most, and `truncated: true` means more matched. `available: false`
+   means the list could not be read now, not that the app has no tools: try
+   again later and never make up a name. Where the hosted server does not
+   have this tool yet, the same list is
+   `junis_api GET /management/composio/integrations/<auth_config_id>/tools`
+   with `search` and `limit` in `query`.
+2. Link with `enabled_tools=[…]`. For an app that is already linked:
+   `set_agent_enabled_tools(agent_id, link_type="composio", link_id=<auth_config_id>, tools=[…])`.
+   Store each `name` exactly as listed (`GMAIL_SEND_EMAIL`), without the
+   `composio_` prefix the agent sees at run time; a name that is not in the
+   list matches nothing. The result's `unknown_tools` names such entries (the
+   save still happened), and `warning` says a large toolkit was linked whole.
+3. Check by running: a real request in a new session, then `list_tool_calls`
+   for the tool the agent was meant to call. `get_agent_tool_access` shows
+   the saved selection only (`null` means the whole toolkit), never the tools
+   an app has.
+
+Some toolkits hold tools that spend money or publish (Higgsfield MCP has
+purchase, publish and deploy tools). Select reading and generating tools on
+purpose and leave the others out. When the user asks for one of them, mark it
+with `set_agent_confirmation_tools` so that it asks a person first.
 
 ### Things to know
 
@@ -229,7 +268,8 @@ lacks permission.
   counts. `get_agent_composio_status` cannot tell expired from never
   connected; `list_composio_connections` can.
 - `personal` connections belong to one user; each person who uses the agent
-  connects their own at `https://junis.ai/team/integrations`. `organization`
+  connects their own (OAuth approval or their own API key) at
+  `https://junis.ai/team/integrations`. `organization`
   connections are made there once by an owner or admin and shared. A person
   removes their own connection with "Disconnect" on the same page.
 - One connection serves any number of agents.
@@ -239,16 +279,20 @@ lacks permission.
 - In instructions and answers, name the service ("Gmail"), never an id.
 - Scheduled runs act as the schedule's creator, so that person's connections
   are the ones used; when the creator has left, the organization owner's.
-- An OAuth app brings every tool of the app. Narrow them per agent with
-  `get_agent_tool_access` and `set_agent_enabled_tools(link_type="composio")`;
-  the web app shows the same selection.
+- An app linked without `enabled_tools` brings every tool it has. Read the
+  saved selection with `get_agent_tool_access` and change it with
+  `set_agent_enabled_tools(link_type="composio")`; the web app shows the same
+  selection.
+- In a team batch, `link_composio` takes `enabled_tools` too; it is saved
+  only when the link is new.
+- These apps are not MCP platforms and never appear in `list_mcp_platforms`.
 
 ## Slack
 
 | Want | Route |
 | --- | --- |
 | People chat with the squad inside Slack | The Junis Slack app. An owner or admin installs it at `https://junis.ai/slack` and links a Junis key. Everyone in the workspace who mentions it runs as that key's user: that user's memory is used, and billing follows the organization's Billing Target (by default the organization owner pays). Knowledge search and conversation search answer only the person who installed it. Details: [publishing.md](publishing.md). |
-| An agent posts reports to a channel | The `slackbot` OAuth app from `list_composio_integrations` (category "team chat"; a bot token an owner or admin enters once at `https://junis.ai/team/integrations`, shared by the organization). Link it with `link_agent_composio`; the tools arrive as `composio_SLACK_…` names, which `get_agent_tool_access` lists once the connection is active. The platform has no Slack MCP platform; if `list_mcp_platforms` ever lists one, read its settings with `get_mcp_platform` (masked) and use the variable names it shows, never names from memory. |
+| An agent posts reports to a channel | The `slackbot` OAuth app from `list_composio_integrations` (category "team chat"; a bot token an owner or admin enters once at `https://junis.ai/team/integrations`, shared by the organization). Link it with `link_agent_composio` and choose its posting tools when linking ("Choosing an app's tools"); `get_agent_tool_access` shows the saved selection, not the tools the app has. The platform has no Slack MCP platform; if `list_mcp_platforms` ever lists one, read its settings with `get_mcp_platform` (masked) and use the variable names it shows, never names from memory. |
 | An agent posts as a person | The `slack` OAuth app (OAuth, the person's own account), also from `list_composio_integrations`. |
 
 - A bot reaches only channels it was invited to.

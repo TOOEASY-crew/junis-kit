@@ -3279,18 +3279,18 @@
     "readOnlyHint": true,
     "title": "List Composio integrations"
    },
-   "description": "List available Composio integrations (OAuth apps).",
+   "description": "List available Composio integrations (apps connected by OAuth or by the user's own API key).\n\nEach entry's `id` is the auth_config_id; `auth_scheme` (OAUTH2 / API_KEY / BEARER_TOKEN) says how the user connects\nit in the web app and `connection_type` (personal / organization) who does.",
    "inputSchema": {
     "properties": {
      "category": {
       "default": "",
       "type": "string",
-      "description": "Category filter. Empty=all."
+      "description": "Category filter. Categories are free text set when an app is registered — call without it first and filter only by a value that call returned. Empty=all."
      },
      "organization_id": {
       "default": "",
       "type": "string",
-      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+      "description": "UUID of the target organization. Always pass it: when omitted, the call acts in the key's default organization."
      }
     },
     "type": "object",
@@ -3298,6 +3298,46 @@
    },
    "name": "list_composio_integrations",
    "title": "List Composio integrations"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true,
+    "title": "List a Composio integration's tools"
+   },
+   "description": "List the tools of one Composio integration: the exact names to pass as enabled_tools\n(link_agent_composio, set_agent_enabled_tools). Read-only.\n\nUse the returned `name` values as they are (e.g. GMAIL_SEND_EMAIL). Large apps have hundreds of tools — when the\nanswer has large=true or truncated=true, narrow it with `search` instead of reading everything. tool_count is the\ntoolkit's total, matched is how many passed `search`. available=false means the tool list could not be read right\nnow (tools is empty): it does not mean the app has no tools — try again later, and do not guess names.",
+   "inputSchema": {
+    "properties": {
+     "auth_config_id": {
+      "type": "string",
+      "description": "The integration's `id` from list_composio_integrations."
+     },
+     "search": {
+      "default": "",
+      "type": "string",
+      "description": "Words that must all appear in a tool's name or description (case-insensitive), e.g. \"send email\". Empty = every tool."
+     },
+     "limit": {
+      "default": 100,
+      "type": "integer",
+      "description": "Maximum tools returned, 1-500 (default 100)."
+     },
+     "organization_id": {
+      "default": "",
+      "type": "string",
+      "description": "UUID of the target organization. Always pass it: when omitted, the call acts in the key's default organization."
+     }
+    },
+    "required": [
+     "auth_config_id"
+    ],
+    "type": "object",
+    "additionalProperties": false
+   },
+   "name": "list_composio_integration_tools",
+   "title": "List a Composio integration's tools"
   },
   {
    "annotations": {
@@ -3360,7 +3400,7 @@
     "readOnlyHint": false,
     "title": "Link Composio integration to agent"
    },
-   "description": "Link a Composio integration to an agent.",
+   "description": "Link a Composio integration to an agent, optionally with only the tools it needs.\n\nWithout enabled_tools the agent gets the app's whole toolkit, and all of it is loaded on every model call (some apps\nhave hundreds of tools). For an app with many tools, call list_composio_integration_tools first and pass the names\nthe agent needs; some toolkits also hold tools that spend money or publish, so choose those on purpose.\nRelay the answer's `warning` (a large toolkit was linked with no selection) and `unknown_tools` (names that are not\ntools of this app and will match nothing) to the user. An integration that is already linked returns 409 — change\nits selection with set_agent_enabled_tools.",
    "inputSchema": {
     "properties": {
      "agent_id": {
@@ -3369,17 +3409,32 @@
      },
      "auth_config_id": {
       "type": "string",
-      "description": "Composio auth config ID."
+      "description": "The integration's `id` from list_composio_integrations."
      },
      "is_required": {
       "default": false,
       "type": "boolean",
       "description": "Agent warns when not connected."
      },
+     "enabled_tools": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Exact tool names from list_composio_integration_tools (e.g. \"GMAIL_SEND_EMAIL\", without a \"composio_\" prefix). None or [] = every tool of the app."
+     },
      "organization_id": {
       "default": "",
       "type": "string",
-      "description": "대상 조직 UUID (필수). 생략 시 API 키 소속 조직이 대상이 되므로 반드시 지정할 것."
+      "description": "UUID of the target organization. Always pass it: when omitted, the call acts in the key's default organization."
      }
     },
     "required": [

@@ -274,6 +274,6 @@ versions, compliance) is in [references/user-steps.md](references/user-steps.md)
 | Subscribe or buy credits (API use needs Basic or Pro) | `https://junis.ai/subscription` |
 | See spending (the payer's page, "By AI Team") | `https://junis.ai/usage` |
 | Put the web app in the right organization (before any page below) | `https://junis.ai/chat?join=<slug>` |
-| Authorize an OAuth app (Gmail, Drive, Instagram, …) | `https://junis.ai/team/integrations` |
+| Authorize an OAuth app (Gmail, Drive, Instagram, …), or connect an app with their own API key | `https://junis.ai/team/integrations` |
 | Register a service key or secret, enter MCP credentials | `https://junis.ai/team/mcp-skills` |
 | Approve a drafted action, or an action run that is waiting | `https://junis.ai/team/actions` |

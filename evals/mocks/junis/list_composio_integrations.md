@@ -1,7 +1,7 @@
 {
  "integrations": [
   {
-   "id": "ac_gmail_01",
+   "id": "33333333-cccc-4ccc-8ccc-000000000001",
    "toolkit_slug": "gmail",
    "toolkit_name": "Gmail",
    "category": "communication",
@@ -9,7 +9,7 @@
    "connection_type": "personal"
   },
   {
-   "id": "ac_slack_01",
+   "id": "33333333-cccc-4ccc-8ccc-000000000002",
    "toolkit_slug": "slack",
    "toolkit_name": "Slack",
    "category": "team chat",
@@ -17,7 +17,7 @@
    "connection_type": "organization"
   },
   {
-   "id": "ac_slackbot_01",
+   "id": "33333333-cccc-4ccc-8ccc-000000000003",
    "toolkit_slug": "slackbot",
    "toolkit_name": "Slackbot",
    "category": "team chat",

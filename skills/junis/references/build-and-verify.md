@@ -38,7 +38,7 @@ Call these for the target organization before deciding anything. Pass
 | `list_llm_models` | The only valid `model` values |
 | `list_tools` | Built-in tools an agent can be given |
 | `list_mcp_platforms` | Global and organization MCP platforms |
-| `list_composio_integrations` | OAuth apps that can be linked |
+| `list_composio_integrations` | OAuth and API-key apps that can be linked |
 | `list_skills` with `include_system=true` | Skills that can be assigned |
 
 Decide after all results are in.
@@ -69,6 +69,9 @@ Order matters, because later steps refer to ids from earlier ones:
 1. Create agents: RAG agents, then LLM agents, then containers.
 2. Add children to containers and sub-agents to routing agents.
 3. Link MCP platforms and Composio integrations; activate the platforms.
+   Choose each app's tools when linking ([connections.md](connections.md),
+   "Choosing an app's tools"): without a selection the whole toolkit loads on
+   every model call.
 4. Update the orchestrator: instruction (patch in the new routing rules) and
    sub-agents.
 5. Assign skills.
@@ -103,8 +106,9 @@ Facts about the batch:
   then send a second batch with the wiring.
 - Actions: `create_agent`, `update_agent` (`{"agent_id", "agent": {…}}`),
   `delete_agent`, `update_orchestrator`, `add_sub_agent`, `remove_sub_agent`,
-  and `link_mcp`, `link_composio`, `link_device` with the matching `unlink_…`
-  actions. Action names differ from tool names.
+  and `link_mcp`, `link_composio` (optionally with `enabled_tools`),
+  `link_device` with the matching `unlink_…` actions. Action names differ
+  from tool names.
 - The `agent` object of `create_agent` and `update_agent` takes any agent
   field, including `output_schema` and `verify_enabled`, which the single
   tools lack. Lists in it replace the stored lists, as on `update_agent`.
@@ -125,7 +129,9 @@ Facts about the batch:
   `get_agent` and check it against `list_llm_models`), effort medium, web
   search and vision on, `output_key` `orchestrator_output`, and the tools
   `sandbox` (sixteen tools), `gen_content`, `waiting_gen_content`,
-  `replicate_status`, `replicate_cancel` and five `jev_*`. Read it with
+  `replicate_status`, `replicate_cancel` and five `jev_*` (`gen_content`
+  brings two free model lookup tools with it:
+  [agent-tools.md](agent-tools.md), "Generated media"). Read it with
   `get_agent` first. Remove the tools the squad does not need by sending the
   reduced list: every tool is described to the model on every call.
 - Add routing rules with `patch_agent_instruction`. Replacing the whole
@@ -163,6 +169,7 @@ Settings
 Connections
 - [ ] Linked MCP platforms appear under `mcp_platforms` in `get_agent`, and were activated with `is_active=true`.
 - [ ] `get_agent_composio_status` reports what is still missing.
+- [ ] Each linked app with many tools has a selection: `get_agent_tool_access` shows names, not `null`, and none of them came back as `unknown_tools`.
 - [ ] No agent has `direct_api_call` unless the user asked for free-form HTTP.
 - [ ] Every action an agent relies on is under `active` in `actions_agent_get` (assigned and approved). A draft is not a tool ([actions.md](actions.md)).
 
@@ -217,7 +224,7 @@ these categories and name each item with its link, or write "nothing":
 
 1. MCP credentials to enter
 2. Secrets to register
-3. OAuth apps to authorize
+3. OAuth apps to authorize, and apps that need the user's own API key (each person for a `personal` app)
 4. Documents to upload
 5. Computer to connect
 6. Subscription or credits
@@ -268,9 +275,9 @@ A whole squad (a root agent and its sub-agent tree) can live in one
 2. Edit the file. Only the fields you keep in an agent are managed; remove a
    field to leave it as it is on the platform. `sub_agents` and `mcp` are the
    complete lists (order of `sub_agents` is the run order). `composio`, when
-   present, must name every connected app of that agent exactly (it sets their
+   present, must name every app linked to that agent exactly (it sets their
    tool lists; the plan rejects a list that leaves one out or names one that
-   is not connected), so leave the key out to leave the apps alone.
+   is not linked to the agent), so leave the key out to leave the apps alone.
    `actions` (exported only for agents that have some) is the complete list
    of action names assigned to the agent: an empty list removes them all, a
    name that does not exist is a plan error, and one not approved yet is a
@@ -290,5 +297,8 @@ A whole squad (a root agent and its sub-agent tree) can live in one
 Planning the same file again after applying shows no changes.
 
 For a new squad, there is nothing to export: write the file from the user's
-description (each new agent needs `agent_type`), then continue at step 3. Connect
-Composio apps first, because the plan rejects links that are not connected.
+description (each new agent needs `agent_type`), then continue at step 3. Link
+Composio apps to their agents first (`link_agent_composio`), because the plan
+rejects an app that is not yet linked to that agent. Linked is enough: the
+file only manages the tool lists of existing links, and the user's
+authorization can follow later.

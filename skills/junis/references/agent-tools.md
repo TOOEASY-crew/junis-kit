@@ -41,7 +41,7 @@ agent's `tools` or instruction the agent-side version is meant. `list_content`,
 | Another agent | `agent_tool:<agent name>`; the target has `is_tool_agent=true` and belongs to the same organization or is global. |
 | Setting | `web_search_enabled=true`: Claude models search through the provider, Gemini 3 through Google; OpenAI, OpenRouter, Azure and Gemini 2 models get `openai_web_search` added. Turning it off does not remove an `openai_web_search` listed in `tools`. |
 | Assigned skill | Adds `use_skill` and `read_skill_file`; a code skill adds `run_code`, the sandbox tools and `openai_web_search`; a skill with required connections adds `check_connections`. |
-| Linked connection | MCP platforms, OAuth apps and devices bring their own tools, all of them (one OAuth app can bring dozens). Trim them per agent with `get_agent_tool_access` then `set_agent_enabled_tools` (per link; `null` means all), and mark the ones that need a person's approval with `set_agent_confirmation_tools`; `get_agent` does not show the trim, `get_agent_effective_config` does. `update_agent` keeps the trim of links that stay linked. OAuth app tools appear as `composio_<ACTION>`. |
+| Linked connection | MCP platforms, OAuth apps and devices bring their own tools, all of them (one OAuth app can bring dozens). Trim them per agent with `get_agent_tool_access` then `set_agent_enabled_tools` (per link; `null` means all), and mark the ones that need a person's approval with `set_agent_confirmation_tools`; `get_agent` does not show the trim, `get_agent_effective_config` does. `update_agent` keeps the trim of links that stay linked. At run time the agent sees an OAuth app's tools as `composio_<NAME>` (`composio_GMAIL_SEND_EMAIL`), but the selection stores the app's own names without that prefix (`GMAIL_SEND_EMAIL`), exactly as `list_composio_integration_tools` returns them; a prefixed or made-up name can match nothing. Choose an app's tools when linking: [connections.md](connections.md), "Choosing an app's tools". |
 | Assigned action | `actions_agent_set` gives the agent one tool `action_<name>` per approved action of the organization ([actions.md](actions.md)). Never list those names in `tools`. An action whose risk is `confirm` asks the person in the web chat first and is not run where nobody can answer (schedules, pipeline steps, agents called as tools); `two_person` is filed for approval instead of run. |
 | Automatic | See "Given automatically". |
 
@@ -62,7 +62,7 @@ a test run that the agent could call them.
 | --- | --- |
 | Web research | `openai_web_search` (GPT-6.1 Sol: searches, opens and reads pages including any URL in the query; the agent picks `depth` quick / standard / deep / exhaustive), `webfetch_safe`, `google_search` (Gemini models only; with other tools present the platform wraps it as a separate search agent) |
 | Documents | `claude_pdf_processor`, `claude_xlsx_processor`, `claude_pptx_creator`, `claude_docx_processor`, `claude_skill_executor` |
-| Generated media | `gen_content`, `waiting_gen_content`, `replicate_status`, `replicate_cancel` |
+| Generated media | `gen_content`, `waiting_gen_content`, `replicate_status`, `replicate_cancel` (`gen_content` brings `replicate_search_models` and `replicate_model_schema` with it; they are not in `list_tools` and are never listed in `tools`) |
 | Document stores | `upload_rag_document`, `search_rag_documents` |
 | HTTP services | `custom_api_call`, `list_custom_apis`, `direct_api_call` |
 | Loops | `exit_loop` |
@@ -138,8 +138,12 @@ with error -32602. If structured extraction fails, fall back to
 
 ## Generated media
 
-`gen_content` creates images, video, audio or 3D through a hosted model and
-costs credits per generation.
+`gen_content` creates images, video, audio or 3D through a hosted model
+(any public model on Replicate) and costs credits per generation. Give the
+agent `gen_content` in `tools`, with `waiting_gen_content`, `replicate_status`
+and `replicate_cancel` for long or background generations. No MCP platform is
+involved: the `replicate-global` platform is inactive (2026-11-15) and is not
+something to link.
 
 ```
 gen_content(
@@ -153,7 +157,30 @@ gen_content(
 - `prefer_wait=True` waits for the result (up to fifteen minutes).
   `prefer_wait=False` returns at once with an id; the agent then calls
   `waiting_gen_content(prediction_id=…)`.
-- The model slug is not validated; a wrong slug fails at the provider.
+- `version` is `owner/name` (the latest version) or
+  `owner/name:version_hash` (pinned). Community models run by `owner/name`
+  too.
+- An agent with `gen_content` also has two free, read-only tools with nothing
+  to configure: `replicate_search_models(query, limit=8)` finds a model's
+  exact `owner/name`, and `replicate_model_schema(model)` returns its inputs
+  (names, types, allowed options, defaults), output type and credit cost.
+- For a model the instruction does not spell out, unfamiliar or newly
+  released, write the order into the agent's instruction: search, read the
+  schema, then run. Do not write input names from memory.
+- A call that cannot run is refused before any credit is charged:
+  `{"success": false, "generation_id": null, "reason", "message", "model"}`
+  with `reason` `malformed_identifier`, `model_not_found`, `invalid_input`
+  (a required input is missing or a value is outside the allowed options;
+  the result then carries `input_schema` to fix the call from) or
+  `catalog_unavailable`. When the model cannot be looked up, an `owner/name`
+  call goes ahead unchecked, while a pinned `owner/name:version_hash` is
+  refused with `catalog_unavailable` (try again, or use `owner/name`). A
+  pinned version costs what its `owner/name` costs.
+- Prices per model are kept by Junis. A model without a price costs the
+  default of 1 credit per run, so tell the user when they choose a new or
+  costly model (a price is registered on request at `contact@junis.ai`). A
+  generation that fails while running is still charged. Only the first
+  output file is kept.
 - Agents show results as `https://junis.ai/content/<id>`, never as a raw
   storage address.
 - You can inspect results with the platform tools `list_content` and

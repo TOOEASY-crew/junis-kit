@@ -49,7 +49,7 @@ passing the id.
 
 | Step | Where |
 | --- | --- |
-| Authorize or disconnect an OAuth app (Gmail, Drive, Instagram, …) | `https://junis.ai/team/integrations` |
+| Authorize or disconnect an OAuth app (Gmail, Drive, Instagram, …), or connect an app with their own API key (ElevenLabs, …) | `https://junis.ai/team/integrations` |
 | Register an organization secret (Org Keys) or a personal secret (My Keys); enter MCP credentials (organization: Edit on the platform; personal: My Credentials); test a connection | `https://junis.ai/team/mcp-skills` ("MCP & Keys") |
 | Sign in to Shopify or Threads | `https://junis.ai/team/mcp-skills`: open Edit (organization) or My Credentials (personal) on a local platform whose name contains `shopify` or `threads`; if none is listed, ask Junis to add it (contact@junis.ai — command-based platforms are set up by Junis administrators) |
 | Approve a drafted action (it does nothing before) or disable one; approve or reject an action run that is waiting; change a connection that approved actions use (owners and admins; none of these has a tool) | `https://junis.ai/team/actions`: Actions tab → "Approve" on the draft's row → "Approve this version" (or "Disable" on an approved one); waiting runs at `https://junis.ai/team/actions?tab=approvals`; connections under the Connections tab. A waiting run expires after 24 hours ([actions.md](actions.md)). |
