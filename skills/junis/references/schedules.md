@@ -89,7 +89,8 @@ misses one keeps the status `completed`, with `result.outcome =
 "{cred:NAME}"}` (or `{cred:private:NAME}`, a registered secret holding a
 Slack-compatible webhook address; a plain address is ignored) makes the
 platform POST a short text to that webhook after every run whose status is
-not `completed` or whose outcome is not `success`. This is how an unattended
+not `completed` or whose outcome is not `success` (a run a person stopped,
+outcome `stopped`, sends nothing). This is how an unattended
 squad reports its own failures; put it on every schedule nobody watches, with
 the secret in the user's checklist. A `PUT` with `metadata` replaces the whole
 object, so send every key again.
@@ -133,6 +134,7 @@ failed run may have no result; read `error_message`).
 | `model_error_present` | A model error message is part of the answer |
 | `truncated` | An error ended the run after part of an answer (run status `timeout`); the partial answer is kept and `error_message` says why. A run cut at the 5-hour limit is `failed` instead |
 | `failed` | The run failed; read `error_message` |
+| `stopped` | A person stopped the run (`cancel_run`, Stop in the app). The status stays `completed` and the partial answer is kept; it is not retried, sends no alert and is left out of "Lessons from runs" |
 
 A run the platform reclaimed after a long stall with no activity also has
 status `timeout`; its `error_message` starts with `[STALE_CLEANUP] Stalled`,
@@ -169,6 +171,9 @@ default), so they can be stopped within a second; with it off, cancel stops
 the run after the step in progress, like `junis_run`
 ([running.md](running.md)):
 `junis_api POST /sessions/<session_id>/cancel` with the run's `session_id`.
+The run then ends with status `completed` and `result.outcome = stopped`
+(what it wrote up to the stop is kept); it counts as a run, is not retried,
+and sends no alert.
 It works only with the key of the person the run acts as (the schedule's
 creator), and only while the session is processing; otherwise it answers 409
 `not_processing`. The platform bills up to the cut. Once a status check past

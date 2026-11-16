@@ -104,6 +104,11 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Changed
 
+- Schedules (`references/schedules.md`): a run a person stops (`cancel_run`,
+  Stop in the app) now ends with `result.outcome = stopped` instead of
+  `success`. The status stays `completed`, the partial answer is kept, and
+  the run sends no alert and is left out of "Lessons from runs". Needs the
+  platform release of 2026-11-16.
 - OAuth apps (`references/connections.md`): a very large app linked with no
   tool selection is no longer loaded (about 800,000 characters of tool
   declarations: ElevenLabs, GitHub). The agent says its tools have
