@@ -171,20 +171,29 @@ gen_content(
   `{"success": false, "generation_id": null, "reason", "message", "model"}`
   with `reason` `malformed_identifier`, `model_not_found`, `invalid_input`
   (a required input is missing or a value is outside the allowed options;
-  the result then carries `input_schema` to fix the call from) or
-  `catalog_unavailable`. When the model cannot be looked up, an `owner/name`
+  the result then carries `input_schema` to fix the call from),
+  `one_output_per_call` (on a model that returns a list of outputs, the
+  call asks for more than one through
+  `num_outputs`, `number_of_images`, `num_images`, `max_images`,
+  `num_samples` or `batch_size`: one call returns one output, so call once
+  per output) or `catalog_unavailable`. When the model cannot be looked up, an `owner/name`
   call goes ahead unchecked, while a pinned `owner/name:version_hash` is
   refused with `catalog_unavailable` (try again, or use `owner/name`). A
   pinned version costs what its `owner/name` costs.
 - Prices per model are kept by Junis. A model without a price costs the
-  default of 1 credit per run, so tell the user when they choose a new or
-  costly model (a price is registered on request at `contact@junis.ai`). A
-  generation that fails while running is still charged. Only the first
-  output file is kept.
+  default: 1 credit per run, or 5 for a video model. `replicate_model_schema`
+  returns the amount as `credit_cost`, so tell the user before running a new
+  or costly model (a price is registered on request at `contact@junis.ai`).
+  A generation that fails or is cancelled while running is still charged and
+  is not refunded.
+- `output_url` in a result is the copy in Junis storage: it does not expire
+  and plays in the chat.
 - Agents show results as `https://junis.ai/content/<id>`, never as a raw
   storage address.
 - You can inspect results with the platform tools `list_content` and
-  `get_content`, and retry a failed one with `retry_content`.
+  `get_content`, and retry a failed one with `retry_content` at no extra
+  charge (up to three times). A cancelled generation cannot be retried:
+  start a new one.
 - Confirm with the user before building anything that generates media in bulk.
 
 ## Code and files in a sandbox

@@ -71,7 +71,7 @@ Order matters, because later steps refer to ids from earlier ones:
 3. Link MCP platforms and Composio integrations; activate the platforms.
    Choose each app's tools when linking ([connections.md](connections.md),
    "Choosing an app's tools"): without a selection the whole toolkit loads on
-   every model call.
+   every model call, and a very large app does not load at all.
 4. Update the orchestrator: instruction (patch in the new routing rules) and
    sub-agents.
 5. Assign skills.

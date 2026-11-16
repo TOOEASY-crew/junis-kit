@@ -228,13 +228,21 @@ lacks permission.
 6. Test in a new session. Tools of a connection exist only in sessions started
    after it became active.
 
+An agent whose user (personal connection) or organization (organization
+connection) has not connected a linked app gets none of its tools. It knows
+this and answers which app is not connected and who connects it under Team →
+Integrations; nothing about it has to be written in the instruction.
+
 ### Choosing an app's tools
 
 Linked without a selection, an app gives the agent its whole toolkit, and all
 of it is described to the model on every call. Measured with no selection
 (2026-11-15): Gmail 63 tools, Slack 174, Higgsfield MCP 101 (about 194,000
 characters of tool declarations per call), ElevenLabs 396 (about 898,000).
-The agent gets slow, costly and worse at choosing. So choose when linking:
+The agent gets slow, costly and worse at choosing. A very large app is not
+loaded at all without a selection (its declarations pass about 800,000
+characters: ElevenLabs, GitHub): the agent then cannot use it and
+says in the chat that its tools have to be selected. So choose when linking:
 
 1. `list_composio_integration_tools(auth_config_id, search="send email")`
    returns `tools` as `{name, description}`. `search` keeps the tools whose
@@ -242,7 +250,10 @@ The agent gets slow, costly and worse at choosing. So choose when linking:
    tools) search instead of reading everything; `limit` is 100 by default and
    500 at most, and `truncated: true` means more matched. `available: false`
    means the list could not be read now, not that the app has no tools: try
-   again later and never make up a name. Where the hosted server does not
+   again later and never make up a name. `without_selection` says what a link
+   with no selection does: `not_loaded` (too large, the agent cannot use the
+   app until tools are selected), `may_not_load` (close to that limit) or
+   `loads_all`. Where the hosted server does not
    have this tool yet, the same list is
    `junis_api GET /management/composio/integrations/<auth_config_id>/tools`
    with `search` and `limit` in `query`.
@@ -252,6 +263,8 @@ The agent gets slow, costly and worse at choosing. So choose when linking:
    `composio_` prefix the agent sees at run time; a name that is not in the
    list matches nothing. The result's `unknown_tools` names such entries (the
    save still happened), and `warning` says a large toolkit was linked whole.
+   A `warning` that starts with "… is too large to load without a tool
+   selection" means the agent cannot use the app yet: select its tools now.
 3. Check by running: a real request in a new session, then `list_tool_calls`
    for the tool the agent was meant to call. `get_agent_tool_access` shows
    the saved selection only (`null` means the whole toolkit), never the tools

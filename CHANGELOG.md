@@ -104,6 +104,20 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Changed
 
+- OAuth apps (`references/connections.md`): a very large app linked with no
+  tool selection is no longer loaded (about 800,000 characters of tool
+  declarations: ElevenLabs, GitHub). The agent says its tools have
+  to be selected, the tool list reports this ahead of time as
+  `without_selection`, and the link result's `warning` says so. An agent
+  whose user or organization has not connected a linked app now names the app
+  and where to connect it.
+- Media generation (`references/agent-tools.md`): one call returns one output
+  (a call asking for more is refused before any charge with
+  `one_output_per_call`); a video model without a registered price costs 5
+  credits instead of 1; `output_url` is the copy in Junis storage; a
+  cancelled generation cannot be retried, and failed or cancelled
+  generations are not refunded.
+
 - `on_behalf_of` runs are for accounts the organization made only; a real
   member is refused (403 `delegation_target_not_provisioned`). The references
   no longer say otherwise.
