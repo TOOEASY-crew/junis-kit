@@ -6,9 +6,9 @@ reports, product data, drawings, a database.
 ## Contents
 
 - Two systems
-- Knowledge (Second Brain): is it on, the API, fitting the knowledge map, how
-  the graph changes, live dashboards and custom front-ends, reading states,
-  asking, limits and cost
+- Knowledge (Second Brain): is it on, personal knowledge, the API, fitting
+  the knowledge map, how the graph changes, live dashboards and custom
+  front-ends, reading states, asking, limits and cost
 - Document stores (RAG)
 - Uploading local files
 - Writing documents that search well
@@ -158,6 +158,40 @@ without its usage note. Route knowledge questions through the orchestrator.
 After a hand-over the session stays with that sub-agent, which has no
 Knowledge tools: ask a knowledge question in a new session. In Slack,
 Knowledge answers only the person who installed the app.
+
+### Personal knowledge
+
+An organization can turn on personal knowledge (team settings, "Personal
+knowledge"; off by default). Each member, and each account the organization
+provisioned, then has knowledge of their own next to the organization's:
+their own sources, map and graph, with the same features. Only that person
+and their agent read it; owners and admins cannot open it. In chat the
+agent searches both and says which answer came from the personal one, and
+the notes it saves during a conversation go to the personal one.
+
+Every `knowledge_*` tool takes two optional arguments. Leave them out and
+the call uses the organization's Knowledge, as before.
+
+| Call | Uses |
+|---|---|
+| no `space`, or `space: "org"` | the organization's Knowledge |
+| `space: "me"` with a user-level key | the key owner's personal knowledge |
+| `space: "me"` and `on_behalf_of: "<user id>"` with an organization key | the personal knowledge of an account the organization provisioned, read and write |
+
+- An organization key with `space: "me"` alone is refused: it would open the
+  knowledge of whoever created the key.
+- `on_behalf_of` needs the key scopes `brain:delegated` and `users:delegate`
+  on top of `brain:read` / `brain:manage`, and only accepts accounts the
+  organization provisioned. A real member's id is refused.
+- If the organization has not turned personal knowledge on, the call returns
+  409 `personal_knowledge_disabled`.
+- Sharing features do not exist for personal knowledge: access control,
+  member browsing, the public widget, browser tokens and database roles
+  return 404 `not_available_for_personal_knowledge`.
+- Secrets come from the owner's own keys (My Keys), not the organization's.
+- On `junis_api`, add `space` and `on_behalf_of` to the query string of an
+  `/external/brain/…` path. The response header `X-Junis-Knowledge-Space`
+  says which one was used.
 
 ### Through the API
 

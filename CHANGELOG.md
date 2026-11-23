@@ -8,6 +8,12 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Added
 
+- Personal knowledge (`references/knowledge.md`, "Personal knowledge"): every
+  `knowledge_*` tool on the hosted server takes the optional arguments
+  `space` (`"org"` by default, `"me"` for personal knowledge) and
+  `on_behalf_of` (an account the organization provisioned, with an
+  organization key). Calls without them are unchanged. Documentation only;
+  the kit passes the server's tool definitions through.
 - OAuth apps (`references/connections.md`, "Choosing an app's tools"): choose
   an app's tools when linking it. The hosted server's new
   `list_composio_integration_tools(auth_config_id, search, limit)` returns
