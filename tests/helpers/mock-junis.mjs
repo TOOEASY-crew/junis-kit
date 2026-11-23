@@ -194,6 +194,15 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
       existing.verified_at = '2026-11-10T00:00:00+00:00';
       return send(response, 200, { file_key: body.file_key, version: existing.version, content: existing.content, verified_at: existing.verified_at, review_due_at: '2027-02-08T00:00:00+00:00', review_due: false });
     }
+    if (route === 'GET /management/wiki') {
+      // Like the platform: `search` keeps the pages whose key contains it, case-insensitively. Annotations are not searched.
+      const pages = state.wiki[auth.organizationId] || {};
+      const needle = state.wikiBehavior.ignoreSearch ? '' : String(url.searchParams.get('search') || '').trim().toLowerCase();
+      const items = Object.keys(pages)
+        .filter((key) => !needle || key.toLowerCase().includes(needle))
+        .map((key) => ({ file_key: key, annotation: pages[key].annotation || '' }));
+      return send(response, 200, { items });
+    }
     if (route === 'GET /management/wiki/lint') {
       const pages = state.wiki[auth.organizationId] || {};
       const keys = Object.keys(pages);

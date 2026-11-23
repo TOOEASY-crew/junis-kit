@@ -15,6 +15,11 @@ release tags users pin with `JUNIS_KIT_REF`.
   platform; five attachments at most per message. Works for the orchestrator
   and for one agent called directly. A run without attachments sends the same
   request as before.
+- `wiki list [--search text]` and `junis_wiki` action `list`: every page key
+  with its annotation. `search` keeps the pages whose key contains the text,
+  whatever the case; the annotation and the body are not searched. The filter
+  is also applied to the answer, so it works on a platform that does not know
+  `search` yet.
 - `references/onboarding.md`: an organization update that could not change
   something now says so in `not_applied` (why, and where to change it); the
   skill tells the user.
