@@ -20,13 +20,37 @@ const KNOWN_SCOPES = new Set(['orchestrator:invoke', 'orchestrator:stream', 'ses
 export const ORG_A = '11111111-1111-4111-8111-111111111111';
 export const ORG_B = '22222222-2222-4222-8222-222222222222';
 
+// A chat request sent as multipart/form-data: the JSON body in `payload`, the files as `files` parts.
+// Returns the JSON body with the received files under `__files` (name, type, text), like the platform sees them.
+async function readMultipart(request, buffer) {
+  const form = await new Response(buffer, { headers: { 'content-type': request.headers['content-type'] } }).formData();
+  let body;
+  try {
+    body = JSON.parse(String(form.get('payload') ?? ''));
+  } catch {
+    return { __invalid: true };
+  }
+  const files = [];
+  for (const part of form.getAll('files')) {
+    if (typeof part === 'string') continue;
+    files.push({ name: part.name, type: part.type, text: Buffer.from(await part.arrayBuffer()).toString('utf8') });
+  }
+  return { ...body, __files: files, __multipart: true };
+}
+
 function readBody(request) {
   return new Promise((resolve) => {
-    let data = '';
+    const chunks = [];
     request.on('data', (chunk) => {
-      data += chunk;
+      chunks.push(chunk);
     });
     request.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      if (String(request.headers['content-type'] || '').startsWith('multipart/form-data')) {
+        readMultipart(request, buffer).then(resolve, () => resolve({ __invalid: true }));
+        return;
+      }
+      const data = buffer.toString('utf8');
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch {

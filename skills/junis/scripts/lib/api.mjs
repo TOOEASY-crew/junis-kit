@@ -48,7 +48,9 @@ export class ExternalApi {
     return url.toString();
   }
 
-  async request(method, path, { query = {}, body, timeoutMs = 120_000, signal } = {}) {
+  // files: [{ name, type, data }] sent with the JSON body as multipart/form-data (`payload` + `files`), the way
+  // the chat endpoints take attachments. Without files the request is the plain JSON request.
+  async request(method, path, { query = {}, body, files, timeoutMs = 120_000, signal } = {}) {
     if (!this.apiKey) {
       throw new KitError('Not logged in', { code: 'not_logged_in', hint: 'Run the login command first.' });
     }
@@ -59,7 +61,12 @@ export class ExternalApi {
     };
     if (UUID.test(this.organizationId)) headers['X-Organization-Id'] = this.organizationId;
     let payload;
-    if (body !== undefined) {
+    if (Array.isArray(files) && files.length) {
+      // The multipart boundary is part of the content type, so fetch sets that header itself.
+      payload = new FormData();
+      payload.append('payload', typeof body === 'string' ? body : JSON.stringify(body ?? {}));
+      for (const file of files) payload.append('files', new Blob([file.data], { type: file.type }), file.name);
+    } else if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
       payload = typeof body === 'string' ? body : JSON.stringify(body);
     }

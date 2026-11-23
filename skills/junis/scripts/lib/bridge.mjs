@@ -160,6 +160,8 @@ const KIT_TOOLS = [
         organization_id: { type: 'string', description: 'UUID of the organization to act in. Defaults to the stored default organization. Pass it whenever you built or changed things in another organization.' },
         wait_seconds: { type: 'integer', minimum: 0, maximum: 50, description: 'Defaults to 45.' },
         max_llm_calls: { type: 'integer', minimum: 1, description: 'Cap on model calls (lower only).' },
+        files: { type: 'array', items: { type: 'string' }, description: 'Local file paths to attach (5 at most, with file_urls).' },
+        file_urls: { type: 'array', items: { type: 'string' }, description: 'Links of online files to attach.' },
       },
       required: ['message'],
       additionalProperties: false,

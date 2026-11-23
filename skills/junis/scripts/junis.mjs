@@ -37,6 +37,7 @@ Operate
                                      key=@path reads a value from a file
   api <METHOD> <path> [key=value ...] [--query k=v,k2=v2] [--json|--file]
   run <agent|orchestrator> <message|@file> [--session id] [--wait-seconds n|--no-wait]
+                                     [--files a.pdf,b.csv] [--file-urls https://…] attach files (at most 5)
   session status <session-id>        Is it still running?
   session wait <session-id> [--wait-seconds n]
   session messages <session-id> [--tail n|--all] [--page-size n]

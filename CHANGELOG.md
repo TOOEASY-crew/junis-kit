@@ -8,6 +8,17 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ### Added
 
+- Attachments on runs: `junis_run` takes `files` (paths of files on this
+  machine) and `file_urls` (links of files that are already online), and the
+  command line takes `run … --files a.pdf,b.csv --file-urls https://…`. Local
+  files are sent with the message as multipart parts and stored by the
+  platform; five attachments at most per message. Works for the orchestrator
+  and for one agent called directly. A run without attachments sends the same
+  request as before.
+- `references/onboarding.md`: an organization update that could not change
+  something now says so in `not_applied` (why, and where to change it); the
+  skill tells the user.
+
 - OAuth apps (`references/connections.md`, "Choosing an app's tools"): choose
   an app's tools when linking it. The hosted server's new
   `list_composio_integration_tools(auth_config_id, search, limit)` returns

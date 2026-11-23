@@ -128,7 +128,9 @@ describe('tool exposure', () => {
     // Budget for the kit's own tools in lazy mode. Raised from 8,000 when junis_wiki joined (one tool, now five actions —
     // verify/lint added 2026-11-10 by tightening the description, not the budget; ~10 chars of headroom is deliberate: a new
     // tool or a longer description must justify raising this number). The platform catalogue stays behind junis_find_tools / junis_call_tool.
-    assert.ok(JSON.stringify(list.result.tools).length < 9600, 'lazy mode exists to keep tool schemas out of context');
+    // Raised from 9,600 when junis_run learned to attach files (`files`, `file_urls`: two arguments with one-line
+    // descriptions, about 230 characters). The headroom stays at about 10 characters for the same reason.
+    assert.ok(JSON.stringify(list.result.tools).length < 9830, 'lazy mode exists to keep tool schemas out of context');
     for (const name of ['junis_status', 'junis_find_tools', 'junis_describe_tool', 'junis_call_tool', 'junis_run', 'junis_run_status']) {
       assert.ok(list.result.tools.some((tool) => tool.name === name), `${name} is listed`);
     }
