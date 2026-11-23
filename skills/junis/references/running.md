@@ -37,15 +37,17 @@ stopping a run, or looking at earlier runs.
 - Going through the orchestrator costs one extra model call for routing and is
   how real users reach the squad, so test that way. Call an agent directly to
   test that agent alone.
-- `junis_run` sends text only. To send images or documents to the orchestrator,
-  call `junis_api POST /v1/chat/completions` with `{"messages": [{"role":
-  "user", "content": "…"}], "files": ["https://…/photo.png"], "session_id":
-  "<new UUID>", "stream": false}`. The files must be publicly downloadable URLs
-  ending in a file extension. If the call ends first, follow it with
-  `junis_run_status(session_id)`. Text files (txt, csv, json, md) are read for
-  every model; the orchestrator sees images and PDFs itself only when vision
-  is on for it (a new organization's orchestrator has it) and its model
-  supports them, and otherwise gets only the link.
+- To send files with a request, pass them to `junis_run`: `files` takes paths
+  of files on this machine (`run <agent> "<message>" --files a.pdf,b.csv`),
+  `file_urls` takes links of files that are already online
+  (`--file-urls https://…/photo.png`), five attachments at most per message.
+  Local files are sent with the message; the platform stores them and gives
+  the agent their links. This works for the orchestrator and for one agent
+  called directly. A missing or empty file stops the call before anything is
+  sent. Text files (txt, csv, json, md) are read for every model; an agent
+  sees images and PDFs itself only when vision is on for it (a new
+  organization's orchestrator has it) and its model supports them, and
+  otherwise gets only the link.
 
 Prefer `junis_run` over the platform's `send_message` and `chat_completion`
 tools: those hold the call open for up to ten minutes, and a client that gives

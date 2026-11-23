@@ -37,6 +37,7 @@ Operate
                                      key=@path reads a value from a file
   api <METHOD> <path> [key=value ...] [--query k=v,k2=v2] [--json|--file]
   run <agent|orchestrator> <message|@file> [--session id] [--wait-seconds n|--no-wait]
+                                     [--files a.pdf,b.csv] [--file-urls https://…] attach files (at most 5)
   session status <session-id>        Is it still running?
   session wait <session-id> [--wait-seconds n]
   session messages <session-id> [--tail n|--all] [--page-size n]
@@ -47,6 +48,7 @@ Operate
                                      under the kit home, writes with the version it read, reads back and compares
   wiki append <file_key> --file f|--text=s
   wiki verify <file_key>             Mark a page as checked: restarts its review timer, body untouched
+  wiki list [--search text]          Page keys with their annotations; --search keeps keys that contain the text
   wiki lint                          Pages that are empty, overdue for review or hold broken [[links]]
   snapshot [--org id] [--out file]      Save an organization's squad as JSON
   snapshot list | snapshot show <file> <agent> | snapshot diff <older> <newer>

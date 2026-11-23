@@ -9,6 +9,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { KitError } from './http.mjs';
+import { readAttachments } from './attachments.mjs';
 import { apiFor, profileForOrganization } from './kit-tools.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -194,7 +195,7 @@ function wholeNumber(value) {
   return undefined;
 }
 
-function launch(api, agent, message, sessionId, { baseline = 0, chosen = false, maxLlmCalls } = {}) {
+function launch(api, agent, message, sessionId, { baseline = 0, chosen = false, maxLlmCalls, attachments } = {}) {
   const started = Date.now();
   const path = agent.kind === 'orchestrator' ? '/v1/chat/completions' : `/agents/${agent.id}/completions`;
   const body =
@@ -203,10 +204,13 @@ function launch(api, agent, message, sessionId, { baseline = 0, chosen = false, 
       : { message, session_id: sessionId, stream: false };
   // Run budget: lowers the saved model-call limit for this run only; omitted = the request is unchanged.
   if (Number.isInteger(maxLlmCalls) && maxLlmCalls >= 1) body.max_llm_calls = maxLlmCalls;
+  // Attachments: links go into the body; local files travel with it as multipart parts. None = the request is unchanged.
+  if (attachments?.urls?.length) body.files = attachments.urls;
+  const files = attachments?.files?.length ? attachments.files : undefined;
 
   const job = { sessionId, agent: agent.name, started, settled: false, outcome: null };
   job.promise = api
-    .request('POST', path, { body, timeoutMs: REQUEST_TIMEOUT_MS })
+    .request('POST', path, { body, files, timeoutMs: REQUEST_TIMEOUT_MS })
     .then((data) => shapeResponse(agent, data, sessionId, started))
     .catch(async (err) => {
       const lostConnection = err.code === 'timeout' || err.code === 'network' || (err.status >= 502 && err.status <= 504);
@@ -302,10 +306,12 @@ function stillRunning(sessionId, agent, started, extra = {}) {
   };
 }
 
-export async function startRun({ agent: target = 'orchestrator', message, session_id: sessionId, organization_id: organizationId, wait_seconds: waitSeconds = 45, confirm = false, max_llm_calls: maxLlmCalls, signal }) {
+export async function startRun({ agent: target = 'orchestrator', message, session_id: sessionId, organization_id: organizationId, wait_seconds: waitSeconds = 45, confirm = false, max_llm_calls: maxLlmCalls, files, file_urls: fileUrls, signal }) {
   const profile = profileForOrganization(organizationId);
   requireLogin(profile);
   if (!message || !String(message).trim()) throw new KitError('message is required', { code: 'usage' });
+  // Read the files before anything is sent: a missing or empty file stops here, not after the run has started.
+  const attachments = readAttachments({ files, file_urls: fileUrls });
   const api = apiFor(profile);
   const agent = await resolveAgent(api, target);
   // Never start a second run in a session that is still working: the first
@@ -333,7 +339,7 @@ export async function startRun({ agent: target = 'orchestrator', message, sessio
     }
   }
   const id = sessionId || crypto.randomUUID();
-  const job = launch(api, agent, String(message), id, { baseline, chosen: Boolean(sessionId), maxLlmCalls: wholeNumber(maxLlmCalls) });
+  const job = launch(api, agent, String(message), id, { baseline, chosen: Boolean(sessionId), maxLlmCalls: wholeNumber(maxLlmCalls), attachments });
   const outcome = await waitFor(job, waitSeconds, signal);
   if (outcome) {
     jobs.delete(id);
@@ -415,6 +421,9 @@ export async function commandRun({ positionals, flags }) {
     session_id: typeof flags.session === 'string' ? flags.session : undefined,
     organization_id: typeof flags.org === 'string' ? flags.org : undefined,
     wait_seconds: waitSeconds,
+    // --files a.pdf,b.csv (paths on this machine) and --file-urls https://…,https://… (already online)
+    files: typeof flags.files === 'string' ? flags.files : undefined,
+    file_urls: typeof flags.file_urls === 'string' ? flags.file_urls : undefined,
     // The command exits after printing, so the run must be on the platform.
     confirm: true,
   });

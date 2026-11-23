@@ -14,6 +14,22 @@ release tags users pin with `JUNIS_KIT_REF`.
   `on_behalf_of` (an account the organization provisioned, with an
   organization key). Calls without them are unchanged. Documentation only;
   the kit passes the server's tool definitions through.
+- Attachments on runs: `junis_run` takes `files` (paths of files on this
+  machine) and `file_urls` (links of files that are already online), and the
+  command line takes `run … --files a.pdf,b.csv --file-urls https://…`. Local
+  files are sent with the message as multipart parts and stored by the
+  platform; five attachments at most per message. Works for the orchestrator
+  and for one agent called directly. A run without attachments sends the same
+  request as before.
+- `wiki list [--search text]` and `junis_wiki` action `list`: every page key
+  with its annotation. `search` keeps the pages whose key contains the text,
+  whatever the case; the annotation and the body are not searched. The filter
+  is also applied to the answer, so it works on a platform that does not know
+  `search` yet.
+- `references/onboarding.md`: an organization update that could not change
+  something now says so in `not_applied` (why, and where to change it); the
+  skill tells the user.
+
 - OAuth apps (`references/connections.md`, "Choosing an app's tools"): choose
   an app's tools when linking it. The hosted server's new
   `list_composio_integration_tools(auth_config_id, search, limit)` returns

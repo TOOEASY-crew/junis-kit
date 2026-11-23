@@ -138,7 +138,11 @@ in each. Building and managing need the role OWNER or ADMIN.
   (owner or admin of that organization). Renaming also renames its orchestrator to
   `Orchestrator_<new name>`; its id `orchestrator-<slug>` stays. Never send
   `settings` through `junis_api PUT /management/organizations/<id>`: it
-  replaces all of the organization's settings.
+  replaces all of the organization's settings. When the answer to an
+  organization update carries `not_applied`, tell the user each entry: its
+  `code` says why it was not changed (`web_only`: the user changes it in the
+  Junis web app; `use_endpoint`: call the endpoint named in `endpoint`; the
+  other codes mean the value cannot be set by a request).
 
 ## Access errors
 

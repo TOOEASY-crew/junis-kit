@@ -279,3 +279,39 @@ describe('empty text guards on every write path', () => {
     assert.equal(empty.json.error, 'empty_payload');
   });
 });
+
+describe('wiki list', () => {
+  beforeEach(() => {
+    mock.state.wiki[ORG_A]['guides/Momentum-basics'] = { content: 'x', version: 1, annotation: 'Momentum primer' };
+    mock.state.wiki[ORG_A]['guides/value'] = { content: 'x', version: 1, annotation: 'Mentions momentum only here' };
+  });
+
+  test('lists every page key with its annotation and sends no search by default', async () => {
+    const kitHome = await loggedInHome();
+    const result = await runCli(['wiki', 'list'], { env: mock.env(), kitHome });
+    assert.equal(result.code, 0, result.stdout);
+    assert.deepEqual(requests('GET /management/wiki').at(-1).query, {});
+    assert.equal(result.json.total, Object.keys(mock.state.wiki[ORG_A]).length);
+    assert.ok(result.json.items.some((item) => item.file_key === 'policies/returns' && item.annotation === 'Return policy'));
+    assert.equal(result.json.search, undefined);
+  });
+
+  test('--search keeps the pages whose key contains the text, whatever the case', async () => {
+    const kitHome = await loggedInHome();
+    const result = await runCli(['wiki', 'list', '--search', 'MOMENTUM'], { env: mock.env(), kitHome });
+    assert.equal(result.code, 0, result.stdout);
+    assert.equal(requests('GET /management/wiki').at(-1).query.search, 'MOMENTUM');
+    assert.deepEqual(result.json.items.map((item) => item.file_key), ['guides/Momentum-basics']);
+    assert.equal(result.json.total, 1);
+    assert.equal(result.json.search, 'MOMENTUM');
+  });
+
+  test('a platform that ignores the search still gets a filtered list', async () => {
+    const kitHome = await loggedInHome();
+    mock.state.wikiBehavior.ignoreSearch = true;
+    const result = await runCli(['wiki', 'list', '--search=momentum'], { env: mock.env(), kitHome });
+    assert.equal(result.code, 0, result.stdout);
+    assert.deepEqual(result.json.items.map((item) => item.file_key), ['guides/Momentum-basics']);
+  });
+});
+

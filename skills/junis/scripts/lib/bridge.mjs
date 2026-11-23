@@ -12,7 +12,7 @@ import { KIT_VERSION, customHostWarning, resolveProfile } from './config.mjs';
 import { KitError } from './http.mjs';
 import { SECRET_READ_TOOLS, destructiveApiReason, destructiveReason, secretReadReason } from './destructive.mjs';
 import { emptyTextFieldError } from './guards.mjs';
-import { wikiAppend, wikiGet, wikiLint, wikiPut, wikiVerify } from './wiki.mjs';
+import { wikiAppend, wikiGet, wikiLint, wikiList, wikiPut, wikiVerify } from './wiki.mjs';
 import { PROTOCOL_VERSION, READ_PREFIX, deriveAnnotations } from './mcp-remote.mjs';
 import * as kit from './kit-tools.mjs';
 import { runStatus, seconds, startRun } from './run.mjs';
@@ -160,6 +160,8 @@ const KIT_TOOLS = [
         organization_id: { type: 'string', description: 'UUID of the organization to act in. Defaults to the stored default organization. Pass it whenever you built or changed things in another organization.' },
         wait_seconds: { type: 'integer', minimum: 0, maximum: 50, description: 'Defaults to 45.' },
         max_llm_calls: { type: 'integer', minimum: 1, description: 'Cap on model calls (lower only).' },
+        files: { type: 'array', items: { type: 'string' }, description: 'Local file paths to attach (5 at most, with file_urls).' },
+        file_urls: { type: 'array', items: { type: 'string' }, description: 'Links of online files to attach.' },
       },
       required: ['message'],
       additionalProperties: false,
@@ -229,12 +231,13 @@ const KIT_TOOLS = [
   {
     name: 'junis_wiki',
     description:
-      'One wiki page, by file key. "get": content, version, sha256. "put": create or replace the whole page — empty content refused; an existing page is backed up under the kit home, written with the version read (a change in between = conflict) and read back; replacing an existing page needs confirmed=true after the user agreed. "append": add text to the end of an existing page (archived_to on rollover). "verify": a person checked the page today — text and version stay, the review timer restarts. "lint" (no file_key): read-only check of the whole wiki — review due, broken [[links]], orphans, empty pages, missing annotations, oversized pages.',
+      'One wiki page, by file key. "get": content, version, sha256. "put": create or replace the whole page — empty content refused; an existing page is backed up under the kit home, written with the version read (a change in between = conflict) and read back; replacing an existing page needs confirmed=true after the user agreed. "append": add text to the end of an existing page (archived_to on rollover). "verify": a person checked the page today — text and version stay, the review timer restarts. "list" (no file_key): every page key with its annotation. "lint" (no file_key): read-only check of the whole wiki — review due, broken [[links]], orphans, empty pages, missing annotations, oversized pages.',
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['get', 'put', 'append', 'verify', 'lint'] },
-        file_key: { type: 'string', description: 'Page key, e.g. "policies/returns" (not for lint).' },
+        action: { type: 'string', enum: ['get', 'put', 'append', 'verify', 'list', 'lint'] },
+        file_key: { type: 'string', description: 'Page key, e.g. "policies/returns" (not for list, lint).' },
+        search: { type: 'string', description: 'list: keep keys that contain this text.' },
         content: { type: 'string', description: 'put: the whole page text. append: the text to add.' },
         annotation: { type: 'string', description: 'put: one-line description shown in the index. Kept when omitted.' },
         summary: { type: 'string', description: 'put: one-line note kept in the page history.' },
@@ -539,12 +542,13 @@ export class Bridge {
         return textResult(kit.lint(args.text, { allowedKeys: args.allowed_keys || [] }));
       case 'junis_wiki': {
         if (args.action === 'lint') return clipResult(textResult(await wikiLint()));
+        if (args.action === 'list') return clipResult(textResult(await wikiList({ search: args.search })));
         const fileKey = String(args.file_key || '');
         if (!fileKey) throw new KitError(`junis_wiki action ${JSON.stringify(args.action)} needs file_key`, { code: 'usage' });
         if (args.action === 'get') return clipResult(textResult(await wikiGet(fileKey)));
         if (args.action === 'append') return textResult(await wikiAppend(fileKey, { text: String(args.content ?? '') }));
         if (args.action === 'verify') return textResult(await wikiVerify(fileKey));
-        if (args.action !== 'put') throw new KitError(`junis_wiki action must be get, put, append, verify or lint, got ${JSON.stringify(args.action)}`, { code: 'usage' });
+        if (args.action !== 'put') throw new KitError(`junis_wiki action must be get, put, append, verify, list or lint, got ${JSON.stringify(args.action)}`, { code: 'usage' });
         // The CLI's --yes is the bridge's confirmed=true; the same rule as junis_api for PUT.
         const flags = {
           text: String(args.content ?? ''),

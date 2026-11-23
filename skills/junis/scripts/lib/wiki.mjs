@@ -19,8 +19,9 @@ import { callApi } from './kit-tools.mjs';
 const PAGE = '/management/wiki/content';
 const APPEND = '/management/wiki/content/append';
 const VERIFY = '/management/wiki/verify';   // (2026-11-10) a person confirms the page is correct today — text and version stay, the review timer restarts
+const LIST = '/management/wiki';            // every page key with its annotation; `search` keeps keys that contain the text
 const LINT = '/management/wiki/lint';       // (2026-11-10) deterministic check, no model call, changes nothing
-const USAGE = 'Usage: wiki get <file_key> [--out path] | wiki put <file_key> --file path|--text=s [--annotation s] [--summary s] [--min-chars n] [--yes] | wiki append <file_key> --file path|--text=s | wiki verify <file_key> | wiki lint';
+const USAGE = 'Usage: wiki get <file_key> [--out path] | wiki put <file_key> --file path|--text=s [--annotation s] [--summary s] [--min-chars n] [--yes] | wiki append <file_key> --file path|--text=s | wiki verify <file_key> | wiki list [--search text] | wiki lint';
 
 // The platform may normalise trailing whitespace; the comparison ignores it on both sides.
 export function sha256Stripped(text) {
@@ -200,10 +201,23 @@ export async function wikiLint() {
   return { ...(result && typeof result === 'object' ? result : {}), findings };
 }
 
+// Read-only. `search` keeps the pages whose key contains the text, case-insensitively (names only: the annotation and the
+// body are not searched). The same rule is applied here to the answer, so a platform that does not know `search` yet
+// still gives the filtered list.
+export async function wikiList({ search } = {}) {
+  const text = typeof search === 'string' ? search.trim() : '';
+  const result = await callApi({ method: 'GET', path: LIST, query: text ? { search: text } : {} });
+  const needle = text.toLowerCase();
+  const items = (Array.isArray(result?.items) ? result.items : [])
+    .filter((item) => !needle || String(item?.file_key ?? '').replace(/^@me\//, '').toLowerCase().includes(needle));
+  return { ...(text ? { search: text } : {}), total: items.length, items };
+}
+
 export async function commandWiki({ positionals, flags }) {
   const [action, fileKey] = positionals;
   if (!action) throw new KitError(USAGE, { code: 'usage' });
   if (action === 'lint') return wikiLint();
+  if (action === 'list') return wikiList({ search: flags.search });
   if (!fileKey) throw new KitError(USAGE, { code: 'usage' });
   if (action === 'get') return wikiGet(fileKey, { out: typeof flags.out === 'string' ? flags.out : undefined });
   if (action === 'put') return wikiPut(fileKey, flags);
