@@ -331,10 +331,10 @@ describe('repository hygiene', () => {
 // one place fails here until all copies match. To update: copy the files from the Junis repository unchanged and
 // put the new SHA-256 values below.
 describe('window.junis text and the space-builder bundle match the platform', () => {
-  const WINDOW_JUNIS_TEXT_SHA256 = '938ec562516704712558c147235759d4432c6f0c5be97838cf4ddde5121157a5';
+  const WINDOW_JUNIS_TEXT_SHA256 = '352a088c7197c79358c398b9682d5a5c059b8dc860722a7d11fcb304f5d27538';
   const BUNDLE_SHA256 = {
-    'SKILL.md': '2f419fbaf81b1bd2fe40186659b36fc763566e9160d1461cb9cdcdeaac790d06',
-    'references/window-junis.md': 'e2b6c76058adcad26ff1ead0204f6086f06840b534f4ac23a4c6664ab23fcea8',
+    'SKILL.md': 'ccc301fa2bfe690ea1549f79f1abac7400e67cc071f8425a27395a08c774e6f6',
+    'references/window-junis.md': '9bdbe41181265e00b99f317faa1cae98cd64f071c9319648c5ef315f94c9d587',
     'skeletons/canvas2d-2.txt': '0efb3826936468447c19a7787230e71963bd00407a66d8f6cabcfb33b9019edb',
     'skeletons/three-2.txt': '1bd358a13c62557ebc48de5145bbfecc566710fd1551a3ce1e78eeb698c6d1a2',
   };

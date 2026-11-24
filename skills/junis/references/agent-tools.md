@@ -259,6 +259,17 @@ field that does not exist.
 Block format and secret references: [instructions.md](instructions.md).
 Header values must be ASCII. The default timeout is thirty seconds.
 
+What comes back in `response`: parsed JSON when the body is JSON, otherwise the
+text. A body that is not UTF-8 is read with the charset the API declared. When
+it declared none and the bytes look like Korean (EUC-KR/CP949, common in Korean
+public APIs), it is read as CP949 and the result also carries `encoding_note`
+saying so: Chinese GB2312 and Japanese EUC-JP use the same byte range and can
+come out as meaningless Korean, so garbled text next to that note means "ask
+the API for UTF-8", not "the service is broken". A file (ZIP, PDF, image), or
+text that could not be read with the declared or a likely charset, comes back
+as `{"binary": true, "content_type", "size_bytes", "note"}` with the status
+code kept; the note says which of the two it was.
+
 When the call is a write that a person must approve before agents may use it,
 or confirm each time, define it as an action instead ([actions.md](actions.md)):
 the request is fixed by the approved definition and every run is recorded.

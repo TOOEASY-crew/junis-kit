@@ -6,6 +6,13 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ## [Unreleased]
 
+- `references/agent-tools.md`: what `custom_api_call` returns for a response that is not UTF-8
+  (the declared charset; Korean CP949 with an `encoding_note` when the API declared none and
+  the bytes look Korean), and the `{"binary": true, …}` shape for files and unreadable text.
+  `references/agent-settings.md`: a linked Claude organization that is out of credit or at its
+  spend limit stops the turn with a notice and charges nothing, a schedule stopped this way is
+  not retried and stays on, and the Console organization that owns the app cannot be linked.
+
 - `references/app-users.md`: the channel setup now shows the `email` block (SMTP host, port,
   user, password secret, sender address, inbound secret) next to Telegram and text messages,
   says where the secrets are registered and what each one is, and the push row says what the

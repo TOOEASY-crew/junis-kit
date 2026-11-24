@@ -84,8 +84,15 @@ with no amount. Squads, tools, MCP, schedules and streaming behave the same.
 Side calls (the web search tool, Claude Skills, code execution, summaries, the
 verifier) stay on Junis credits. Turning it on before linking returns 409, a
 model that is not direct Claude returns 422, and if the link ends later the
-agent answers with a notice instead of running on credits. Turn it on only when
-the user asks.
+agent answers with a notice instead of running on credits. The same happens
+when the linked Claude organization has no credit left or has reached its
+spend limit: the turn stops with a notice that says so, nothing is charged to
+either side, and it works again once that organization adds credit or raises
+its limit in the Claude Console (nothing to change in Junis). A scheduled run
+stopped this way is not retried and does not count toward the schedule being
+switched off; the schedule stays on and runs again at its next time. The
+Claude Console organization that owns the Junis app registration cannot be
+linked; the approval page refuses it. Turn it on only when the user asks.
 
 ## Fields for containers
 
