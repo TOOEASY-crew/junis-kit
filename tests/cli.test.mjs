@@ -120,7 +120,7 @@ describe('tools', () => {
     const result = await runCli(['tools', '--category', 'schedules'], { env: mock.env() });
     const fixture = JSON.parse(fs.readFileSync(path.join(REPO, 'tests', 'fixtures', 'tools-list.prod.json'), 'utf8'));
     assert.equal(result.json.total, fixture.result.tools.length);
-    assert.equal(result.json.matched, 5);
+    assert.equal(result.json.matched, 10); // the schedule tools of hosted server 2.9.0 (5 before: list, create, update, delete, toggle)
   });
 
   test('describe returns the input schema', async () => {
