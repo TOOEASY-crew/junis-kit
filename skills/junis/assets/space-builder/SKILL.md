@@ -9,7 +9,7 @@ The result is one complete HTML document in one `html` code block. It runs in a 
 
 ## Steps
 
-1. Pick one skeleton and read it — with `read_skill_file`, or with `space_app_guide` and the same path:
+1. Pick one skeleton and read it with `read_skill_file`:
    - `skeletons/canvas2d-2.txt` — 2D canvas, no dependencies. The playfield is portrait (360 wide, 520–780 tall) and letterboxed in a wide frame: for tap, drag and swipe games on a phone held upright. To fill a landscape or desktop frame use `three-2` or no skeleton.
    - `skeletons/three-2.txt` — 3D with three.js 0.187.0; fills a frame of any shape.
    For a page with no game loop (a tool, a dashboard), skip the skeleton and follow "Rules for every page".
@@ -17,12 +17,12 @@ The result is one complete HTML document in one `html` code block. It runs in a 
 3. The kernel already handles pointer and key input, a fixed 1/60 s step, pause (hidden tab, platform leaderboard, P key), sound unlock, the start/pause/game-over overlay, the best score (`window.junis.storage`, key `best`) and the leaderboard score (`window.junis.run`, short rounds as one run). Do not write these again or call `window.junis.run`.
 4. A region may use: `G` (`G.score`, `G.t` = ms played, `G.best`, `G.mode`, your own fields), `gameOver(reason)` — `gameOver(reason, false)` when `G.score` is not a result —, `setMode(name)`, `rng.next()` / `rng.range(a, b)` / `rng.int(a, b)`, `hud.text(id, value)`, `sfx.tone()` / `sfx.noise()` / `sfx.drone()`, `clamp`, `lerp`, `damp`; in canvas2d also `L` (logical size) and `toLogical(inp.x, inp.y)` — input positions are CSS pixels of the whole frame, not playfield coordinates.
 5. Put every tunable number and colour in the `config` region. Keep everything that decides the outcome in `G`, reset it all in `game.reset`, use `rng` for randomness. `game.onInput` is called only while playing. When a lower score is better, set `"sort":"asc"` in the `board` region: the kernel's best follows it and `G.best` is `null` until a round is scored.
-6. Read `references/window-junis.md` (the same way) when the game saves more than the best score or shows its own leaderboard. The kernel already meets two of its lines: it draws the first frame without waiting for `ready()` (earlier calls are queued) and measures frame time with `performance.now()` — region code uses `G.t` and `dt`, never a clock. `await` works in a region.
+6. Read `references/window-junis.md` when the game saves more than the best score or shows its own leaderboard. The kernel already meets two of its lines: it draws the first frame without waiting for `ready()` (earlier calls are queued) and measures frame time with `performance.now()` — region code uses `G.t` and `dt`, never a clock. `await` works in a region.
 7. Answer with the whole HTML in one `html` block.
 
 ## Rules for every page
 
-- Browser storage: `localStorage` works — on a published page it is kept for each viewer (signed-in viewers on their account, guests on that device; 64 KB in total) — and `sessionStorage` lasts while the page is open. `indexedDB` and `document.cookie` throw or keep nothing in this frame.
+- No browser storage: `localStorage`, `sessionStorage`, `indexedDB` and `document.cookie` throw or keep nothing in this frame. Keep state in memory or use `window.junis.storage`.
 - Scripts load only from `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`, `unpkg.com`, `cdn.tailwindcss.com` and `esm.sh`; stylesheets from the first three and `fonts.googleapis.com`. Anything else is blocked and the page stays blank.
 - No `<iframe>` of a site (this one included) and no form that posts to another site; link with `target="_blank"` or use `fetch`.
 - Input is Pointer Events (`pointerdown`, `pointermove`, `pointerup`) with `touch-action: none` on the control. Mouse-only input does not work on phones. If keys are used, add on-screen buttons too.

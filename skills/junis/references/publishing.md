@@ -107,11 +107,10 @@ Chromium and WebKit). State these in the agent's instruction; nothing else
 enforces them:
 
 - One complete HTML document in one `html` code block; no separate files.
-- Browser storage: `localStorage` works. On the published page it is kept for
-  each viewer of the app (signed-in viewers on their account, guests on that
-  device; 64 KB in total) and `sessionStorage` lasts while the page is open.
-  `indexedDB` and `document.cookie` throw or keep nothing. For leaderboards,
-  data shared between viewers or larger saves use `window.junis` (below).
+- No browser storage: `localStorage`, `sessionStorage` and `indexedDB` throw
+  `SecurityError` and stop the script. To keep progress, use
+  `window.junis.storage` (below): signed-in viewers keep it on their account,
+  guests on that device. Without it, state lives in memory only.
 - Scripts load only from `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`,
   `unpkg.com`, `cdn.tailwindcss.com` and `esm.sh`; on the published page any
   other host is blocked without a visible error. Styles and fonts: the first three and Google Fonts.
@@ -161,7 +160,7 @@ Saving and leaderboards on published pages — window.junis (optional; a page th
 11. Declare the board once near the top of <head>: <script type="application/json" id="junis-space">{"schema":"junis.space/v1","leaderboards":[{"key":"main","label":"High score","sort":"desc"}]}</script> — use "sort":"asc" when lower is better (time attack).
 12. Optional anti-cheat limits go in the same JSON as "score":{"max":100000,"maxPerSecond":50,"minRunMs":3000}: max and min = bounds of an honest score, minRunMs = shortest possible round, maxPerSecond = most points per second between run.start and run.end (not checked for "asc"). A score outside them stays private to the player and no name prompt appears, so set each about twice as loose as the best honest play, or leave it out.
 13. The platform freezes requestAnimationFrame, timers and Web Audio (AudioContext; one you suspend yourself stays suspended) while the tab is hidden or the leaderboard is open, and performance.now() does not jump afterwards: use performance.now(), not Date.now(), for game time. `window.junis.on('pause', fn)` / `window.junis.on('resume', fn)`: show a paused state and stop what is not frozen (CSS animations, <audio>/<video>).
-14. localStorage works: on a published page it is kept for each viewer of this app like a save (signed-in viewers on their account, guests on this device; 64 KB for all of it, written in batches at most every 2.5 s, counted in line 4's limits). sessionStorage lasts while the page is open. Never use indexedDB or document.cookie — they throw in this frame or keep nothing.
+14. Never use localStorage, sessionStorage, indexedDB or document.cookie — storage access throws in this frame and cookies are not kept.
 15. In the chat preview saves and scores last only while the preview is open; they become real after Publish. In a downloaded file `ready()` still resolves and the storage, run and leaderboard.list calls return `null`.
 16. Publishing an edited result: choose "Update link" to keep the same address, saves and leaderboard.
 ```
