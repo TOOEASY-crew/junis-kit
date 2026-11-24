@@ -301,9 +301,9 @@ export async function connect({ key, profileName, keepClipboard = false, fromCli
 // for a key, the user approves it in the browser where they are signed in,
 // and the kit collects it with a one-time verifier. Nothing is copied or
 // pasted, so it also works in remote shells and containers without a
-// clipboard. The request asks for every permission the skill's tools use (the
-// web app's "Coding agents" preset without its two admin scopes and the two
-// opt-in Junis Space scopes); the user sees them before approving.
+// clipboard. The request asks for every permission the skill's tools and
+// references use (the web app's "Coding agents" preset without its two admin
+// scopes); the user sees them before approving.
 // The permissions every platform version that has the key request flow knows.
 // It is what the kit falls back to when a platform refuses a newer one and
 // does not say which permissions it offers.
@@ -315,7 +315,9 @@ export const KEY_REQUEST_CORE_SCOPES = [
 ];
 // Permissions added to the platform after the core list. A platform that does
 // not know one yet refuses the whole request; startBrowserLogin then asks again without it.
-export const KEY_REQUEST_NEWER_SCOPES = ['actions:read', 'actions:run', 'actions:manage', 'board:read', 'board:manage'];
+// The two Junis Space ones (2026-11-25) are what `references/publishing.md` calls
+// through `junis_api`: checking a page, publishing it, versions, leaderboards.
+export const KEY_REQUEST_NEWER_SCOPES = ['actions:read', 'actions:run', 'actions:manage', 'board:read', 'board:manage', 'spaces:read', 'spaces:manage'];
 export const KEY_REQUEST_SCOPES = [...KEY_REQUEST_CORE_SCOPES, ...KEY_REQUEST_NEWER_SCOPES];
 
 // The list to ask for after the platform refused the full one for a

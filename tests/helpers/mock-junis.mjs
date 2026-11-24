@@ -16,7 +16,7 @@ const baseCatalogue = JSON.parse(fs.readFileSync(path.join(here, '..', 'fixtures
 export const USER_KEY = 'jns_user_testkey0123456789abcdefghij';
 export const ORG_KEY = 'jns_live_testkey0123456789abcdefghij';
 // Scopes the mock platform knows (a request with any other one is refused like the platform's 400).
-const KNOWN_SCOPES = new Set(['orchestrator:invoke', 'orchestrator:stream', 'sessions:read', 'sessions:messages', 'agents:list', 'agents:invoke', 'organizations:read', 'organizations:manage', 'agents:manage', 'relationships:manage', 'mcp:manage', 'datastores:manage', 'sessions:manage', 'schedules:manage', 'skills:manage', 'composio:manage', 'content:read', 'content:retry', 'rag:upload', 'rag:read', 'rag:delete', 'brain:read', 'brain:manage', 'wiki:read', 'wiki:manage', 'secrets:manage', 'actions:read', 'actions:run', 'actions:manage', 'board:read', 'board:manage']);
+const KNOWN_SCOPES = new Set(['orchestrator:invoke', 'orchestrator:stream', 'sessions:read', 'sessions:messages', 'agents:list', 'agents:invoke', 'organizations:read', 'organizations:manage', 'agents:manage', 'relationships:manage', 'mcp:manage', 'datastores:manage', 'sessions:manage', 'schedules:manage', 'skills:manage', 'composio:manage', 'content:read', 'content:retry', 'rag:upload', 'rag:read', 'rag:delete', 'brain:read', 'brain:manage', 'wiki:read', 'wiki:manage', 'secrets:manage', 'actions:read', 'actions:run', 'actions:manage', 'board:read', 'board:manage', 'spaces:read', 'spaces:manage']);
 export const ORG_A = '11111111-1111-4111-8111-111111111111';
 export const ORG_B = '22222222-2222-4222-8222-222222222222';
 

@@ -63,9 +63,9 @@ handshake of older clients, with `-32022` for an unsupported version.
    preferred route: the browser.
 2. Browser approval (`junis_connect` with `method: "browser"`, command
    `login --browser`) uses the platform's key request flow. The kit posts a
-   request with a SHA-256 challenge of a one-time verifier and 31 scopes, every
-   permission the skill's tools use (the web app's "Coding agents" preset
-   without its two admin scopes and the two opt-in Junis Space scopes). A platform that does not know one of them refuses
+   request with a SHA-256 challenge of a one-time verifier and 33 scopes, every
+   permission the skill's tools and references use (the web app's "Coding
+   agents" preset without its two admin scopes). A platform that does not know one of them refuses
    the list with 400 `invalid_scopes`; the kit then asks once for the
    intersection with the `available_scopes` the refusal names (the 26 core
    scopes when it names none), and for the platform's defaults only if that

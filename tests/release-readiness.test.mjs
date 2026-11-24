@@ -298,7 +298,8 @@ describe('a narrower key can be requested through the browser', () => {
 describe('browser login asks for the Actions permissions and degrades to what the platform offers', () => {
   const ACTIONS = ['actions:read', 'actions:run', 'actions:manage'];
   const BOARD = ['board:read', 'board:manage'];   // the squad board (2026-11-19)
-  const NEWER = [...ACTIONS, ...BOARD];           // everything after the core list
+  const SPACES = ['spaces:read', 'spaces:manage']; // published pages through the API (2026-11-25)
+  const NEWER = [...ACTIONS, ...BOARD, ...SPACES]; // everything after the core list
   // A platform of its own per case, so the order of start requests can be read exactly.
   async function platform(settings = {}) {
     const own = await startMockJunis();
@@ -307,14 +308,14 @@ describe('browser login asks for the Actions permissions and degrades to what th
   }
   const login = (own, args = []) => runCli(['login', '--browser', '--wait-seconds', '0', ...args], { env: own.env(), kitHome: tempDir() });
 
-  test('the default request is the core list plus the Actions and squad board permissions', () => {
+  test('the default request is the core list plus the Actions, squad board and Junis Space permissions', () => {
     assert.equal(KEY_REQUEST_CORE_SCOPES.length, 26);
-    assert.equal(KEY_REQUEST_SCOPES.length, 31);
+    assert.equal(KEY_REQUEST_SCOPES.length, 33);
     assert.deepEqual(KEY_REQUEST_SCOPES, [...KEY_REQUEST_CORE_SCOPES, ...NEWER]);
-    assert.equal(new Set(KEY_REQUEST_SCOPES).size, 31, 'no permission twice');
+    assert.equal(new Set(KEY_REQUEST_SCOPES).size, 33, 'no permission twice');
   });
 
-  test('a platform that knows them is asked once, for all 31', async () => {
+  test('a platform that knows them is asked once, for all 33', async () => {
     const own = await platform();
     try {
       const result = await login(own);
@@ -322,7 +323,7 @@ describe('browser login asks for the Actions permissions and degrades to what th
       assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES], 'one request, nothing retried');
       const granted = [...own.state.keyRequests.values()].at(-1).scopes;
       for (const scope of NEWER) assert.ok(granted.includes(scope), scope);
-      assert.equal(granted.length, 31);
+      assert.equal(granted.length, 33);
     } finally {
       await own.close();
     }
@@ -362,11 +363,25 @@ describe('browser login asks for the Actions permissions and degrades to what th
 
   test('a platform that has Actions but not the squad board yet keeps the Actions permissions', async () => {
     // The state between a kit update and the platform release that adds the board: only the two unknown permissions are dropped.
-    const own = await platform({ unknownScopes: BOARD });
+    const own = await platform({ unknownScopes: [...BOARD, ...SPACES] });
     try {
       const result = await login(own);
       assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
       const expected = [...KEY_REQUEST_CORE_SCOPES, ...ACTIONS];
+      assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, expected]);
+      assert.deepEqual([...own.state.keyRequests.values()][0].scopes, expected);
+    } finally {
+      await own.close();
+    }
+  });
+
+  test('a platform without the Junis Space permissions keeps the Actions and squad board ones', async () => {
+    // A platform older than the Junis Space release (2026-11-24): only the two it does not know are dropped.
+    const own = await platform({ unknownScopes: SPACES });
+    try {
+      const result = await login(own);
+      assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
+      const expected = [...KEY_REQUEST_CORE_SCOPES, ...ACTIONS, ...BOARD];
       assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, expected]);
       assert.deepEqual([...own.state.keyRequests.values()][0].scopes, expected);
     } finally {

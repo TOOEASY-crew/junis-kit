@@ -48,7 +48,7 @@ See the table in [onboarding.md](onboarding.md), "Access errors". In short:
 | --- | --- |
 | `subscription_required`, `no_subscription`, `invalid_plan` | Subscribe at `https://junis.ai/subscription` |
 | `insufficient_credits` | Buy credits at `https://junis.ai/subscription`; when the message mentions organization credits or `billing_role: member`, the owner adds them |
-| `insufficient_scopes` | Personal key: add the missing permissions ("Add permissions" on the API keys page), or connect again with browser login. Browser login never asks for `spaces:read` or `spaces:manage`: those two are added on the API keys page only. Organization key (partner): make a new key at `https://junis.ai/admin/dashboard` → API Keys with the permissions picked |
+| `insufficient_scopes` | Personal key: add the missing permissions ("Add permissions" on the API keys page), or connect again with browser login. Organization key (partner): make a new key at `https://junis.ai/admin/dashboard` → API Keys with the permissions picked |
 | "admin or owner access required" | Get the role from an owner or admin of the organization |
 | `rate_limit_exceeded` | Wait; you must not retry in a loop |
 
