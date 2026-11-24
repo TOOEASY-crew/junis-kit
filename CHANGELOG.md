@@ -6,6 +6,12 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ## [Unreleased]
 
+- `references/app-users.md`: the channel setup now shows the `email` block (SMTP host, port,
+  user, password secret, sender address, inbound secret) next to Telegram and text messages,
+  says where the secrets are registered and what each one is, and the push row says what the
+  Firebase Org Key holds and how an FCM device token is registered. The owner's list no longer
+  says the app sends the push when `app-push` is on.
+
 - Junis Space through the API: browser login now asks for `spaces:read` and
   `spaces:manage` too (33 permissions), so the calls in
   `references/publishing.md` (check a page before publishing, publish or

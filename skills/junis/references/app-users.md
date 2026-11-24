@@ -203,7 +203,7 @@ Every finished scheduled run of an app user also leaves a feed item of kind
 | The list (inbox screen) | `GET /me/feed` (newest first), then `GET /me/feed?after=<cursor>` for later items |
 | Unread badge | `unread` in the same reply; `POST /me/feed/read` with `{"ids": […]}` or `{"up_to": "<cursor>"}` |
 | Live updates on every device | `GET /me/events`: server-sent events, `event: item` with the cursor as its id; after 5 minutes `event: end`, reconnect with `Last-Event-ID`. Read it with `fetch` streaming (it needs the Authorization header) |
-| Push notifications, with no server | Turn it on once: `PUT /management/app-push {"expo": {"enabled": true}}` for Expo and React Native apps, and/or `{"fcm": {"service_account_secret": "<Org Key name>"}}` for Firebase (Android, iOS through Firebase, web). The app registers each device: `PUT /me/push-tokens {"provider": "expo", "token": "ExponentPushToken[…]"}` (call it on every start; `GET /me/push-tokens` → `providers` empty means off; `DELETE /me/push-tokens` with the same body on sign-out: the token goes in the body, never in the address). Messages and approval requests then arrive as notifications after quiet hours, once, with `data.feed_item_id` to open the item |
+| Push notifications, with no server | Turn it on once: `PUT /management/app-push {"expo": {"enabled": true}}` for Expo and React Native apps, and/or `{"fcm": {"service_account_secret": "<Org Key name>"}}` for Firebase (Android, iOS through Firebase, web). For Firebase the Org Key holds the whole service account JSON file from the Firebase console (Project settings → Service accounts → Generate new private key); for Expo with enhanced security on, add `"access_token_secret": "<Org Key name>"`. Send what you use in one call: it replaces the whole setup. The app registers each device: `PUT /me/push-tokens {"provider": "expo", "token": "ExponentPushToken[…]"}` or `{"provider": "fcm", "token": "<the FCM registration token>"}` (up to 10 devices per user; call it on every start; `GET /me/push-tokens` → `providers` empty means off; `DELETE /me/push-tokens` with the same body on sign-out: the token goes in the body, never in the address). Messages and approval requests then arrive as notifications after quiet hours, once, with `data.feed_item_id` to open the item |
 | Push notifications, when you have a server | `PUT /management/user-feed/webhook` `{"url": "https://…", "secret_name": "<Org Key name>", "kinds": ["message"]}`. Each item is POSTed with Standard Webhooks headers; verify the signature, de-duplicate on `webhook-id`, then call APNs or FCM yourself |
 
 Write the unattended agent's instruction so it earns attention: stay silent
@@ -404,13 +404,29 @@ its own accounts and stores each secret under Org Keys; the setup names them:
 PUT /management/app-channels
 {"api_key_id": "<organization key the channel conversations run under>",
  "telegram": {"bot_token_secret": "TG_TOKEN", "bot_username": "my_helper_bot"},
- "sms": {"account_sid": "AC…", "auth_token_secret": "TWILIO_TOKEN", "from_number": "+1…"}}
+ "sms": {"account_sid": "AC…", "auth_token_secret": "TWILIO_TOKEN", "from_number": "+1…"},
+ "email": {"smtp_host": "smtp.example.com", "smtp_port": 587, "smtp_user": "bot@example.com",
+           "smtp_password_secret": "SMTP_PASS", "from_address": "bot@example.com",
+           "inbound_secret": "MAIL_IN"}}
 ```
+
+Send only the channels the app offers. Every `…_secret` field takes the **name**
+of an Org Key, never the value: the user registers the values first at
+`https://junis.ai/team/mcp-skills` → Org Keys (the Telegram bot token from
+BotFather, the Twilio auth token, the SMTP password, and for `inbound_secret`
+any long random string the mail service will send back). `smtp_port` is 25,
+465, 587 or 2525; 465 connects with TLS, the others upgrade with STARTTLS.
+Replies are sent from `from_address`, and that is also the address users write
+to.
 
 The reply lists `inbound_urls`. Telegram is registered when you save; set the
 `sms` URL as the messaging webhook of the Twilio number; for `email`, have the
 mail service post `{from, subject, text, message_id, auth}` with the header
-`X-Junis-Channel-Secret`.
+`X-Junis-Channel-Secret` set to the value stored under `inbound_secret`.
+
+Before launch, try each channel once with a real account (a message in, an
+answer back, and one `notify_user` message out): a wrong token or an
+unregistered sender number shows up only then.
 
 Who really sent it:
 
@@ -612,7 +628,9 @@ payments, messages to other people) behind confirmation.
   screens.
 - Payments and each user's allowance: read usage from `credit_usage` in chat
   replies or `GET /management/usage?user_id=` and charge in the app.
-- Push credentials (APNs, FCM) and sending the push.
+- Push credentials: the Firebase service account (which carries the APNs key for
+  iOS) or the Expo project. With `app-push` on (step 7) Junis sends the
+  notification; with the feed webhook the app's own server sends it.
 - Store listing, privacy policy and deleting an account on request
   (`DELETE /management/users/<id>`).
 
