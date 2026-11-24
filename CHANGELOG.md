@@ -6,6 +6,12 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ## [Unreleased]
 
+- Junis Space permissions: `onboarding.md`, `publishing.md` and
+  `troubleshooting.md` now say that browser login never asks for
+  `spaces:read` and `spaces:manage`, so a 403 `insufficient_scopes` on
+  `/api/external/spaces/*` is fixed with "Add permissions" on the API keys
+  page, not by connecting again. No tool and no requested permission changed.
+
 - App users, after an independent review of the platform (2026-11-24). The
   reference now says what the platform enforces: a sign-in issuer needs
   `audience` (and a `subject_prefix` each when there are several); inbound email is handled only with the mail service's `auth`

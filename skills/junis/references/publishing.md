@@ -175,7 +175,9 @@ platform refuses to overwrite it (line 8) and the strip offers Reload.
 An organization admin can turn viewer data off in Team Settings ("Saves and
 leaderboards on published pages"); pages keep running and the calls return
 `null`. A key with the opt-in permissions `spaces:read` and `spaces:manage`
-(owner or admin keys) manages links through `/api/external/spaces/*`: list
+(owner or admin keys; browser login does not ask for them, so the user adds
+them with "Add permissions" on the API keys page) manages links through
+`/api/external/spaces/*`: list
 links, publish HTML, update a link in place, list and restore versions, read
 or reset a leaderboard, and read or change the organization setting. No API
 writes a viewer's saves or scores. Since 2026-11-20 the same keys also

@@ -108,6 +108,14 @@ Composio and RAG, and needs these added for six more areas:
 | The squad board through the API ([agent-tools.md](agent-tools.md), "Squad board") | `board:read`, `board:manage`. Never part of any default; a key made before the board existed lacks them too. Both need an owner's or admin's key. The agents' own `board_*` tools need no key permission. |
 | Actions ([actions.md](actions.md)) | `actions:read`, `actions:manage` for connections, drafts and assignment, `actions:run` to run. Never part of any default; a key made before Actions existed lacks them too. Reading and managing need an owner's or admin's key; a member's key runs only the actions whose definition lists `MEMBER` in a roles rule |
 
+Junis Space through the API ([publishing.md](publishing.md): checking a page,
+versions, leaderboards, the team gallery) needs `spaces:read` and
+`spaces:manage`, from an owner's or admin's key. Browser login never asks for
+these two, so connecting again does not add them: the user presses "Add
+permissions" next to the key on the API keys page and ticks them. Publishing
+from the chat and everything a published page does for its viewers need
+neither.
+
 To add a permission, the user presses "Add permissions" next to the key on the
 API keys page, or connects again with browser login. Permissions can be added
 to a key but not removed: to drop one, revoke the key and make a new one. An
