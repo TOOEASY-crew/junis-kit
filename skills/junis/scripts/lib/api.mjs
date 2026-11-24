@@ -70,7 +70,8 @@ export class ExternalApi {
       headers['Content-Type'] = 'application/json';
       payload = typeof body === 'string' ? body : JSON.stringify(body);
     }
-    const response = await httpRequest(method.toUpperCase(), this.buildUrl(path, query), {
+    const target = this.buildUrl(path, query);
+    const response = await httpRequest(method.toUpperCase(), target, {
       headers,
       body: payload,
       timeoutMs,
@@ -87,6 +88,34 @@ export class ExternalApi {
         detail: data,
       });
     }
+    // Personal knowledge asked for (space=me on a Knowledge path): the platform must confirm it in the response header.
+    // A platform version without the feature ignores `space` and answers 200 from the ORGANIZATION's Knowledge — handing
+    // that back would show team knowledge as personal, and a write has gone into the team's Knowledge.
+    if (asksForPersonalKnowledge(target)) {
+      const used = String(response.headers?.get?.('x-junis-knowledge-space') || '').trim().toLowerCase();
+      if (used !== 'me') {
+        const wrote = !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+        throw new KitError('Personal knowledge was requested (space=me) but the platform did not confirm it; the organization\'s Knowledge was used instead', {
+          code: 'personal_knowledge_not_confirmed',
+          status: response.status,
+          hint: wrote
+            ? 'This was a write: check the organization\'s Knowledge for what was just added or changed, and remove it there if it was meant to be personal. Personal knowledge is not available on this platform version yet.'
+            : 'The result was discarded. Personal knowledge is not available on this platform version yet; call again without space for the organization\'s Knowledge.',
+        });
+      }
+    }
     return data !== undefined ? data : response.text;
   }
+}
+
+// True for a Knowledge request that carries space=me (the query may come from the `query` object or be typed into the path).
+export function asksForPersonalKnowledge(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (!/\/external\/brain(\/|$)/.test(parsed.pathname)) return false;
+  return String(parsed.searchParams.get('space') || '').trim().toLowerCase() === 'me';
 }

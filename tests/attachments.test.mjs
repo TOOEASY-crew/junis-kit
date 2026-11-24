@@ -129,3 +129,63 @@ describe('sending files with junis_run', () => {
     }
   });
 });
+
+describe('what a model may attach (2026-11-24)', () => {
+  test('a file under the kit home is never sent, also through a symbolic link, and nothing leaves the machine', async () => {
+    const { mock, kitHome, env, work } = await setup();
+    const key = path.join(kitHome, 'credentials.json');
+    assert.ok(fs.existsSync(key), 'the login wrote the key store');
+    const link = path.join(work, 'notes.txt');
+    fs.symlinkSync(key, link);
+    const bridge = startBridge({ env, kitHome, lazy: true });
+    try {
+      for (const target of [key, link]) {
+        const refused = await bridge.callTool('junis_run', { message: 'read this', files: [target] });
+        assert.equal(refused.isError, true, target);
+        assert.match(JSON.stringify(refused.data), /credentials folder/);
+      }
+    } finally {
+      await bridge.close();
+    }
+    assert.equal(completions(mock).length, 0);
+  });
+
+  test('the result says what was attached: names and sizes, not content', async () => {
+    const { mock, kitHome, env, file } = await setup();
+    const result = await runCli(['run', 'orchestrator', 'read', '--files', file('brief.md', 'hello'), '--file-urls', 'https://files.example/a.png'], { env, kitHome });
+    assert.equal(result.code, 0, result.stdout);
+    assert.deepEqual(result.json.attached, [{ name: 'brief.md', bytes: 5 }, { url: 'https://files.example/a.png' }]);
+    const plain = await runCli(['run', 'orchestrator', 'no files'], { env, kitHome });
+    assert.equal(plain.json.attached, undefined, 'a run without attachments reports nothing new');
+    assert.equal(completions(mock).length, 2);
+  });
+
+  test('--files without a value is an error, not a run without the file', async () => {
+    const { mock, kitHome, env } = await setup();
+    for (const args of [['--files'], ['--files='], ['--file-urls']]) {
+      const result = await runCli(['run', 'orchestrator', 'read', ...args], { env, kitHome });
+      assert.notEqual(result.code, 0, JSON.stringify(args));
+      assert.match(result.stdout + result.stderr, /needs a value/);
+    }
+    assert.equal(completions(mock).length, 0);
+  });
+});
+
+describe('personal knowledge is confirmed by the platform, not assumed (2026-11-24)', () => {
+  test('a platform that ignores space=me is refused; one that confirms it is used', async () => {
+    const old = await setup();
+    const read = await runCli(['api', 'GET', '/brain/sources', '--query', 'space=me'], { env: old.env, kitHome: old.kitHome });
+    assert.notEqual(read.code, 0, read.stdout);
+    assert.match(read.stdout + read.stderr, /personal_knowledge_not_confirmed|did not confirm/);
+    assert.doesNotMatch(read.stdout, /Handbook/, 'the organization\'s sources are not handed back as personal');
+    const write = await runCli(['api', 'POST', '/brain/sources/text', 'title=t', 'content=c', '--query', 'space=me'], { env: old.env, kitHome: old.kitHome });
+    assert.notEqual(write.code, 0);
+    assert.match(write.stdout + write.stderr, /This was a write/);
+    const org = await runCli(['api', 'GET', '/brain/sources'], { env: old.env, kitHome: old.kitHome });
+    assert.equal(org.code, 0, 'the organization\'s Knowledge needs no confirmation');
+
+    const now = await setup({ personalKnowledge: true });
+    const mine = await runCli(['api', 'GET', '/brain/sources', '--query', 'space=me'], { env: now.env, kitHome: now.kitHome });
+    assert.equal(mine.code, 0, mine.stdout + mine.stderr);
+  });
+});

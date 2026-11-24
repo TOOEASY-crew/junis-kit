@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { KitError } from './http.mjs';
-import { readAttachments } from './attachments.mjs';
+import { attachedSummary, readAttachments } from './attachments.mjs';
 import { apiFor, profileForOrganization } from './kit-tools.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -340,20 +340,23 @@ export async function startRun({ agent: target = 'orchestrator', message, sessio
   }
   const id = sessionId || crypto.randomUUID();
   const job = launch(api, agent, String(message), id, { baseline, chosen: Boolean(sessionId), maxLlmCalls: wholeNumber(maxLlmCalls), attachments });
+  // Say what went with the message (names and sizes only): `files` is filled in by a model, so the caller should see what left this machine.
+  const attached = attachedSummary(attachments);
+  const told = (result) => (attached && result && typeof result === 'object' ? { ...result, attached } : result);
   const outcome = await waitFor(job, waitSeconds, signal);
   if (outcome) {
     jobs.delete(id);
-    return outcome;
+    return told(outcome);
   }
   if (confirm && !(await confirmStarted(api, job))) {
-    if (job.settled) return job.outcome;
+    if (job.settled) return told(job.outcome);
     if (sessionId) {
       return { status: 'unknown', session_id: id, note: 'The platform did not acknowledge the run in this session. If the id belongs to another user, the run went to a new session: check list_sessions before sending it again.' };
     }
     return { status: 'not_started', session_id: id, note: 'The platform did not acknowledge the run. Check the connection, then send it again.' };
   }
-  if (job.settled) return job.outcome;
-  return stillRunning(id, agent.name, job.started);
+  if (job.settled) return told(job.outcome);
+  return told(stillRunning(id, agent.name, job.started));
 }
 
 export async function runStatus({ session_id: sessionId, organization_id: organizationId, wait_seconds: waitSeconds = 30, signal }) {
@@ -415,6 +418,13 @@ export async function commandRun({ positionals, flags }) {
   const message = readMessage(rest);
   const interactive = Boolean(process.stdout.isTTY);
   const waitSeconds = flags.no_wait ? 0 : seconds(flags.wait_seconds, interactive ? 1800 : NON_TTY_WAIT_S);
+  // A flag that is present but empty (`--files` with nothing after it, `--files=`) is a mistake, not "no attachments":
+  // the run would go out without the file the caller meant to send.
+  for (const [flag, name] of [['files', '--files'], ['file_urls', '--file-urls']]) {
+    if (flags[flag] !== undefined && (flags[flag] === true || String(flags[flag]).trim() === '')) {
+      throw new KitError(`${name} needs a value`, { code: 'usage', hint: `${name} a.pdf,b.csv — or leave the flag out to send no attachment.` });
+    }
+  }
   const outcome = await startRun({
     agent: target,
     message,

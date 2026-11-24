@@ -60,7 +60,8 @@ function readBody(request) {
   });
 }
 
-export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraTools = [], silentAnswer = false } = {}) {
+export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraTools = [], silentAnswer = false, personalKnowledge = false } = {}) {
+  // `personalKnowledge`: the platform knows `space=me` and says which Knowledge it used; without it the query is ignored (an older platform).
   // `extraTools` stands for tools the platform added after the kit was written.
   const catalogue = [...baseCatalogue, ...extraTools];
   const state = {
@@ -107,7 +108,8 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
 
   function send(response, status, body) {
     const text = JSON.stringify(body);
-    response.writeHead(status, { 'Content-Type': 'application/json' });
+    response.setHeader('Content-Type', 'application/json');
+    response.writeHead(status);
     response.end(text);
   }
 
@@ -242,6 +244,10 @@ export async function startMockJunis({ runDelayMs = 0, dropAfterMs = 0, extraToo
     if ((match = /^GET \/management\/soul\/([^/]+)$/.exec(route))) {
       return send(response, 200, { file_key: match[1], content: state.soul[match[1]] || '' });
     }
+    if (personalKnowledge && url.pathname.includes('/brain/')) {
+      response.setHeader('X-Junis-Knowledge-Space', url.searchParams.get('space') === 'me' ? 'me' : 'org');
+    }
+    if (route === 'POST /brain/sources/text') return send(response, 201, { id: 'src-new', status: 'queued' });
     if (route === 'GET /brain/sources') return send(response, 200, { sources: [{ id: 'src-1', title: 'Handbook', status: 'ready' }], total: 1 });
     if (route === 'GET /brain/search') return send(response, 200, { query: url.searchParams.get('q'), results: [] });
 

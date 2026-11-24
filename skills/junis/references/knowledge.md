@@ -176,7 +176,8 @@ and their agent read it; owners and admins cannot open it. In chat the
 agent searches both and says which answer came from the personal one, and
 the notes it saves during a conversation go to the personal one.
 
-Every `knowledge_*` tool takes two optional arguments. Leave them out and
+Every `knowledge_*` tool takes two optional arguments (the exceptions are
+listed below: database roles, recall checks and the question index). Leave them out and
 the call uses the organization's Knowledge, as before.
 
 | Call | Uses |
@@ -196,9 +197,17 @@ the call uses the organization's Knowledge, as before.
   member browsing, the public widget, browser tokens and database roles
   return 404 `not_available_for_personal_knowledge`.
 - Secrets come from the owner's own keys (My Keys), not the organization's.
-- On `junis_api`, add `space` and `on_behalf_of` to the query string of an
-  `/external/brain/…` path. The response header `X-Junis-Knowledge-Space`
-  says which one was used.
+- Organization-wide features are not offered for personal knowledge either:
+  recall checks (`knowledge_recall_*`) and the question index
+  (`knowledge_question_index*`) have no `space` argument, and their paths
+  return the same 404 with `space=me`.
+- On `junis_api`, add `space` and `on_behalf_of` to `query` on a `/brain/…`
+  path. The response header `X-Junis-Knowledge-Space` says which one was used.
+- A call made with `space: "me"` fails with `personal_knowledge_not_confirmed`
+  when the platform does not confirm personal knowledge in that header. A
+  platform version without the feature ignores `space` and would use the
+  organization's Knowledge; the kit and the hosted server refuse to pass that
+  off as personal. After a write, check the organization's Knowledge.
 
 ### Through the API
 

@@ -29,15 +29,26 @@ release tags users pin with `JUNIS_KIT_REF`.
   `knowledge_*` tool on the hosted server takes the optional arguments
   `space` (`"org"` by default, `"me"` for personal knowledge) and
   `on_behalf_of` (an account the organization provisioned, with an
-  organization key). Calls without them are unchanged. Documentation only;
-  the kit passes the server's tool definitions through.
+  organization key). Calls without them are unchanged. Hosted server 2.10.0;
+  the kit passes the server's tool definitions through. Database roles,
+  recall checks and the question index are organization-only and have no
+  `space` argument.
+- Personal knowledge is confirmed, not assumed: a request sent with
+  `space=me` (through `junis_api` or the hosted tools) fails with
+  `personal_knowledge_not_confirmed` unless the platform answers
+  `X-Junis-Knowledge-Space: me`. A platform version without the feature
+  ignores `space` and would read and write the organization's Knowledge.
 - Attachments on runs: `junis_run` takes `files` (paths of files on this
   machine) and `file_urls` (links of files that are already online), and the
   command line takes `run … --files a.pdf,b.csv --file-urls https://…`. Local
   files are sent with the message as multipart parts and stored by the
   platform; five attachments at most per message. Works for the orchestrator
   and for one agent called directly. A run without attachments sends the same
-  request as before.
+  request as before. Local paths are resolved through symbolic links; a file
+  under the kit home or a credentials folder (`~/.ssh`, `~/.aws`, …) is
+  refused, a file over 200 MB is refused before it is read, the result lists
+  what was sent (`attached`: names and sizes), and `--files` with no value is
+  an error instead of a run without the file.
 - `wiki list [--search text]` and `junis_wiki` action `list`: every page key
   with its annotation. `search` keeps the pages whose key contains the text,
   whatever the case; the annotation and the body are not searched. The filter
