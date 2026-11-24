@@ -69,6 +69,9 @@ Consequences of `none`:
 | Pipeline A → B → C, C needs A | Only B's answer | Yes, A's key |
 | Parallel (A, B, C) → D | Only whichever finished last | Yes, all three keys |
 | Parallel siblings reading each other | Nothing | Not possible; they run at once |
+| For-each step → D | The result array: one JSON array in input order | No; use the step's `map_config.output_key` only for fixed placement or a later step |
+| For-each worker | Its item, at the end of its instruction | Only for anything else it needs from earlier agents |
+| Transform step → D | The step's answer, a JSON array | Usually no; use its `output_key` for fixed placement |
 | Loop with one child, iteration N | The hand-over and its own earlier iterations | No |
 | Loop with children A → B, A at iteration N | Only B's previous answer | Yes, A's own key |
 | Hand-over from a routing agent | The routing agent's hand-over text | Usually no |
@@ -109,6 +112,8 @@ Do not write from general knowledge.
   reasoning, which is not stored, so the receiver gets an empty message
   whatever the instruction says. On those models pass results with a
   sequential agent and `{key?}` and use hand-overs for routing only.
+  Claude Fable 5.2 wrote the text and the hand-over in one reply in 8 of 8
+  measured runs (2026-11-19).
 - Do not use the cheapest model tier for agents whose whole job is to pass work
   on. They tend to hand over with empty text, and the receiver then runs on
   nothing.

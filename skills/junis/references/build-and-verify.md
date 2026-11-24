@@ -110,8 +110,9 @@ Facts about the batch:
   `link_device` with the matching `unlink_…` actions. Action names differ
   from tool names.
 - The `agent` object of `create_agent` and `update_agent` takes any agent
-  field, including `output_schema` and `verify_enabled`, which the single
-  tools lack. Lists in it replace the stored lists, as on `update_agent`.
+  field, including `output_schema`, which the single tools lack, and the step
+  settings `map_config` and `transform_config`. Lists
+  in it replace the stored lists, as on `update_agent`.
 - `add_sub_agent` twice for the same pair is an error. Linking a platform
   again is harmless; linking a switched-off organization platform fails.
 - `update_orchestrator.sub_agents` only adds, at positions 1..n. To detach, use
@@ -156,6 +157,7 @@ Structure
 - [ ] No loop inside a loop. No RAG agent as a sub-agent.
 - [ ] Every target of `agent_tool:<name>` has `is_tool_agent=true`, and the name matches exactly.
 - [ ] No batch result had `applied: false`, and every `errors` list was empty.
+- [ ] `get_agent_effective_config` of each container and of the orchestrator shows no `unresolved_children` and no `structure_warnings`; a squad file's plan has no `[structure:…]` warning.
 
 Settings
 - [ ] Every `model` is in the current `list_llm_models` result.
@@ -239,6 +241,7 @@ these categories and name each item with its link, or write "nothing":
 | A new agent | `delete_agent`. Its relationships and assignments go with it. |
 | A wrong link | `remove_sub_agent`, `unlink_agent_mcp`, `unlink_agent_composio`, `unlink_agent_device`, `unassign_skill`. |
 | A replaced list | `update_agent` with the full list from the snapshot. |
+| A squad file apply | `squad_rollback` with its `apply_id`: preview, the user agrees, then `confirm=true` ([improving.md](improving.md), "Taking back a whole squad apply"). Created agents stay. |
 | A schedule | `toggle_schedule` with `enabled=false` to pause, `delete_schedule` to remove. |
 | Test leftovers | Delete test agents and schedules, restore the orchestrator instruction, and say what remains (test sessions). |
 
@@ -251,15 +254,18 @@ organization, and every schedule). The platform also keeps a version of every
 agent at each create, update and restore, including changes made through the
 kit (on by default; `get_effective_feature_flags` shows whether it is on
 for the organization). Read and restore them from here (owners and admins):
-`list_agent_versions` → `get_agent_version` → `preview_agent_rollback` (writes
+`list_agent_versions` → `diff_agent_versions` → `preview_agent_rollback` (writes
 nothing; returns `current_state_sha256`) → ask the user → `rollback_agent` with
 that `expected_current_sha256`, so an edit made in between is refused with 409
 `stale_current` instead of being overwritten. The web page
-`https://junis.ai/team/agent-versions` shows the same versions. It refuses the orchestrator, restores
-settings, instruction, sub-agent order and MCP connections, keeps the tool
-selections of connections that are still linked, and leaves Composio apps and
-skills as they are now. Adding or removing a sub-agent alone does not make a
-version; the next update records it.
+`https://junis.ai/team/agent-versions` shows the same versions. A version is
+made at every change, including a sub-agent, link or assignment on its own.
+A rollback refuses the orchestrator and restores settings, instruction,
+sub-agent order and MCP connections; tool selections, Composio apps, skills,
+actions, devices and answer checking come back only when chosen in `restore`.
+The preview's `restore.widens` names everything the agent would have again
+(tools, knowledge stores, sub-agents, connections); show it before restoring
+([improving.md](improving.md), "What changed, and taking it back").
 
 Deleting agents, skills, datastores or sessions cannot be undone. Confirm with
 the user first, naming exactly what will be removed.
@@ -288,13 +294,30 @@ A whole squad (a root agent and its sub-agent tree) can live in one
    most 60 agents, 10 levels deep.
 3. `squad_plan` with `document=@squad.json` → read `errors` (fix them),
    `warnings` (for example a `{placeholder}` nothing fills) and `changes`.
-   Show the user the changes.
-4. With their go-ahead, `squad_apply` with the same document and the plan's
-   `plan_id`. 409 `stale_plan` means the organization changed since the plan:
+   Fix every `<agent>: [structure:<code>] …` warning in the file and plan
+   again before applying (table below). Show the user the changes.
+4. With their go-ahead, `squad_apply` with the same document, the plan's
+   `plan_id` and a `change_note` when the apply fixes or improves something
+   ([improving.md](improving.md), Step 4). 409 `stale_plan` means the organization changed since the plan:
    plan again. A `partial` result lists the steps that were saved; `rollback`
-   gives each updated agent's previous version for `rollback_agent`.
+   gives each updated agent's previous version for `rollback_agent`. Keep
+   `receipt.apply_id` from the answer: `squad_rollback` takes the whole apply
+   back ([improving.md](improving.md), "Taking back a whole squad apply").
+   If the call timed out, do not apply again yet: the newest `squad_receipts`
+   entry with `status: "partial"` is that apply.
 
 Planning the same file again after applying shows no changes.
+
+| Structure warning | What is wrong | Fix |
+| --- | --- | --- |
+| `parallel_same_output_key` | Two branches of one parallel agent write the same state key; only one value is kept | Give each agent its own `output_key` |
+| `same_agent_twice_in_parallel` | One agent runs in two branches of a parallel agent; the runs share a name and a state key | Clone it for the second branch, or run the two one after the other |
+| `confirm_tool_unreachable` | An agent with a confirmation list sits under a workflow agent or is called as a tool, where nobody can approve | Take the tools off its list, or move it where people talk to it |
+| `loop_no_exit` | No agent under the loop has `exit_loop`, so it always runs every round | Give the last child `exit_loop` |
+| `transfer_handoff_gemini` | A direct sub-agent reads the `{output_key}` of a Gemini 3.7 or 3.8 parent, which writes no text when it hands over | Pass the result with a `SEQUENTIAL_AGENT` |
+
+The same codes appear under `structure_warnings` in
+`get_agent_effective_config`. They never block a save.
 
 For a new squad, there is nothing to export: write the file from the user's
 description (each new agent needs `agent_type`), then continue at step 3. Link

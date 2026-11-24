@@ -60,7 +60,10 @@ make a new one.
 
 ## Creating accounts
 
-`POST /management/users` with `{"email": "…", "name": "…", "organization_id": "<uuid>"}`.
+`POST /management/users` with `{"email": "…", "name": "…", "organization_id": "<uuid>"}`,
+or with `"external_id": "<the user's id in the app>"` instead of `email` to
+create the account without an email address (the same `external_id` returns
+the same account).
 
 | Response | Meaning |
 | --- | --- |
@@ -101,13 +104,14 @@ make a new one.
   Do not send again: check `GET /sessions/<id>/status?on_behalf_of=<user_id>`
   and read the messages.
 - Every run is billed to the key owner.
-- The API cannot create a schedule in an account's name: `POST
-  /management/schedules` makes it run as the key owner. For a recurring job per
-  account, the app's own scheduler makes the call with `on_behalf_of`. An
-  account can still ask the squad in its own conversation ("send me this every
-  morning"): the orchestrator then creates a schedule that runs as that
-  account, within the member limits (200 running schedules, 10 minutes apart
-  at least), and its usage is settled with the organization like its chats.
+- A schedule in an account's name: `POST /me/schedules?on_behalf_of=<user_id>`
+  (list, switch off and delete under the same path; see
+  [app-users.md](app-users.md), step 6). `POST /management/schedules` still
+  makes a schedule that runs as the key owner. An account can also ask the
+  squad in its own conversation ("send me this every morning"): the
+  orchestrator then creates a schedule that runs as that account. Either way
+  the member limits apply (200 running schedules, 10 minutes apart at least)
+  and usage is settled with the organization like its chats.
 
 ### What comes back
 
@@ -216,3 +220,5 @@ be stored for someone; the person must approve them.
   signed in to.
 - Credentials can be written but not read, by anyone.
 - The key belongs on the app's server only, never in a browser or mobile app.
+  A front end calls Junis with a short-lived app-user token instead
+  ([app-users.md](app-users.md)).

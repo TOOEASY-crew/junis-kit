@@ -144,7 +144,7 @@ kit update.
 | Graph queries | Neighbors, paths, subgraphs and snapshots without a model call, with an `as_of` date for past facts. For piping and instrument drawings, a what-if tool reports what closing valves would cut off. |
 | Databases | PostgreSQL, Oracle, MySQL or MariaDB, and SQL Server connect as Knowledge sources through an account you give read-only rights. A guard checks each query before it runs, and each query leaves a trace without values. |
 | Semantic layer (PostgreSQL only) | People approve query templates, glossary terms and metrics, and agents answer through them. Database roles decide which rows and columns each person can query. |
-| Squads | An orchestrator routes each request to sub-agents, which run in sequence, in parallel or in a loop. Squads can call other squads and ask the user a question in the web chat. |
+| Squads | An orchestrator routes each request to sub-agents, which run in sequence, in parallel, once for each item of a list, or in a loop; list clean-up steps (merge, de-duplicate, filter, sort) run without a model. Squads can call other squads and ask the user a question in the web chat. |
 | Squad as code and versions | A squad exports to one JSON file that you plan against the live organization and apply. Every agent change is kept and can be rolled back. |
 | Runs and audit | Runs start on a schedule, from Slack, from CI or through the External API. Every tool call is recorded with its status. |
 | Actions | Typed operations on your own systems: an HTTP API, a signed webhook or one tool of a registered MCP server. A person approves each definition in the web app before any agent can use it, a run can require one or two people to confirm, and every run is recorded. |
@@ -170,11 +170,11 @@ Details for each area are in [docs/CAPABILITIES.md](docs/CAPABILITIES.md).
 | People in the loop | A question card in the web chat, and per-tool approval lists |
 | Simulation | A simulated community that reacts to a text over rounds and can be interviewed (needs a key the organization registers) |
 
-55 chat models, set per agent:
+56 chat models, set per agent:
 
 | Family | Models |
 | --- | --- |
-| Anthropic | Claude Fable 5 and 5.1, Opus 4.8, 5 and 5.5, Sonnet 4.6, 5 and 5.5 |
+| Anthropic | Claude Fable 5, 5.1 and 5.2, Opus 4.8, 5 and 5.5, Sonnet 4.6, 5 and 5.5 |
 | OpenAI | GPT-5.4 to GPT-6.1, including the sol, terra, luna and astra variants |
 | Google | Gemini 2.5 to 3.8, flash and pro |
 | Open-weight and others | DeepSeek V4 and V4.1, Qwen 3.6, Kimi K2.6 and K3.1, GLM 5.1 and 5.3, Grok 4.3 and 4.6, MiniMax M2.7 and M3.1, MiMo V2.5 |
@@ -281,14 +281,15 @@ you can do in the web app (plans, OAuth apps, publishing, team roles) are in
 
 | Agent | What is tested |
 | --- | --- |
-| Claude Code | Behaviour: 25 `claude plugin eval` cases in `evals/`, each run 3 times in real, isolated sessions against mocked Junis servers, with and without the plugin. Also `claude plugin validate .`, install tests and MCP handshake tests. |
+| Claude Code | Behaviour: 28 `claude plugin eval` cases in `evals/`, each run 3 times in real, isolated sessions against mocked Junis servers, with and without the plugin. Also `claude plugin validate .`, install tests and MCP handshake tests. |
 | Codex, Cursor, Gemini CLI, GitHub Copilot CLI, OpenCode | Install and MCP handshake tests. No behaviour evals. |
 | VS Code (Copilot) | Install planning (dry run) and MCP handshake tests. |
 | Devin Desktop, Claude Desktop | MCP handshake tests. Their file locations are not tested. |
 
 Latest full eval run, November 4, 2026, on the skill as it was that day and the 20 cases that existed
-then. Later changes have not been re-measured, and the five Actions cases added since have not been
-run.
+then. Later changes have not been re-measured, and the eight cases added since (five for Actions,
+`builds-a-front-end-only-app`, `improves-a-squad-from-its-ledger` and
+`measures-the-question-index-before-turning-it-on`) have not been run.
 
 | Result | Cases |
 | --- | --- |

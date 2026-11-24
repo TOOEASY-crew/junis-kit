@@ -231,7 +231,11 @@ lacks permission.
 An agent whose user (personal connection) or organization (organization
 connection) has not connected a linked app gets none of its tools. It knows
 this and answers which app is not connected and who connects it under Team →
-Integrations; nothing about it has to be written in the instruction.
+Integrations; nothing about it has to be written in the instruction. It still
+does every step its other tools cover (custom API calls, MCP tools, other
+apps) and skips only the steps that need the missing app. Unlink an app the
+agent does not use (`unlink_agent_composio`): it is reported missing on every
+run while it stays linked and unconnected.
 
 ### Choosing an app's tools
 
@@ -456,6 +460,25 @@ code skill by itself (runtime from the script files).
   skill's sandbox.
 - Skills of another organization cannot be assigned; create them again in the
   target organization.
+
+Every create, edit, file write, import, delete and restore of an
+organization skill keeps a version (owner or admin key).
+
+| The user wants | Do |
+| --- | --- |
+| To change a skill others rely on | Read its history first: `list_skill_versions(skill_id)` (when, who, how much changed), and `diff_skill_versions(skill_id, from_version)` for what changed since a version (`to_version` left out = the skill now) |
+| "Undo my last skill change" | `list_skill_versions` → `diff_skill_versions` with the version to go back to (the preview of the restore) → show the user → `restore_skill_version(skill_id, version, summary)`. The restore is itself a version and can be undone the same way |
+| A deleted skill back | `list_skills(deleted=True)` for its id → `restore_skill_version`. It returns with the same id (`status: "revived"`) but no agent or bundle assignments: assign it again. 409 `skill_name_taken`: another skill has the name now |
+| To tidy up | `list_skills` shows `uses_30d` and `last_used_at`, `get_skill` `usage_by_agent`. Name the skills with no use in 30 days and ask before unassigning or deleting any: an assigned skill nobody loads may only need a clearer description |
+
+Without these tools (an older hosted server): `junis_api GET
+/management/skills/<id>/versions`, `GET …/versions/diff?from=<n>`,
+`POST …/versions/restore` with `{"version": <n>}`, and
+`GET /management/skills/deleted`.
+
+`not_restored` in a restore lists very large parts the version did not keep
+in full; they stay as they are now. `status: "disabled"` or 409
+`skill_versions_disabled`: history is off for the organization.
 
 ## When nothing fits
 

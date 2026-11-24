@@ -7,6 +7,8 @@ Read this when something should run by itself at set times, or once later.
 - What a schedule is
 - Creating one
 - The prompt
+- Success rules
+- Running only when there is work
 - Running now
 - Reading results
 - Stopping a run
@@ -73,14 +75,15 @@ create_schedule(
 - A run has no user to ask. The instructions along the route must not depend
   on questions being answered.
 
-To run one agent directly without routing through the orchestrator, the
-schedule's metadata can name it. The platform tool does not expose metadata;
-use the API:
-
+The schedule's `metadata` holds its run rules. `create_schedule` and
+`update_schedule` take it as the `metadata` argument; when the tool's schema
+has no such argument (an older hosted server), use the API:
 `junis_api POST /management/schedules` (CLI:
-`api POST /management/schedules --file schedule.json`) with
-`"metadata": {"target_agent_id": "<agent uuid>"}` in the body alongside
-`name`, `prompt`, `schedule_type`, `schedule_config`. The prompt then goes to
+`api POST /management/schedules --file schedule.json`) with `"metadata"` in
+the body alongside `name`, `prompt`, `schedule_type`, `schedule_config`.
+
+To run one agent directly without routing through the orchestrator, name it:
+`"metadata": {"target_agent_id": "<agent uuid>"}`. The prompt then goes to
 that agent, still headed by the run-time line. `"metadata": {"required_tools":
 ["<tool name>", …]}` requires a successful call of every listed tool: a run that
 misses one keeps the status `completed`, with `result.outcome =
@@ -92,8 +95,74 @@ platform POST a short text to that webhook after every run whose status is
 not `completed` or whose outcome is not `success` (a run a person stopped,
 outcome `stopped`, sends nothing). This is how an unattended
 squad reports its own failures; put it on every schedule nobody watches, with
-the secret in the user's checklist. A `PUT` with `metadata` replaces the whole
-object, so send every key again.
+the secret in the user's checklist. Runs skipped for lack of work
+(`skipped_no_work`) send nothing either. An update with `metadata` replaces
+the whole object: read the schedule's `task_metadata` (`list_schedules`),
+change the keys you mean to and send all of it back, or the keys you left
+out are removed.
+
+## Success rules
+
+A schedule can state what a good run looks like. The platform then checks
+every run and gives the verdict `contract_unmet` when a rule is broken.
+
+- `required_tools` (top level of `metadata`, above): tools each run must call
+  successfully.
+- `contract` in `metadata`: `forbidden_tools` (a call counts even when it
+  failed; up to 20), `min_tool_calls` and `max_tool_calls` (0 to 1000),
+  `must_include` and `must_not_include` (fixed text looked for in the final
+  answer, case and spacing ignored; up to 10 of up to 200 characters each).
+  `required_tools` inside `contract`, or a tool both required and forbidden,
+  is refused with 400. An empty `contract` or `null` removes it.
+
+"Set success rules for this schedule":
+
+1. `get_schedule_contract_suggestion(schedule_id)`
+   (`GET /management/schedules/<id>/contract-suggestion`) reads the
+   schedule's successful runs of the last 30 days and needs at least 10;
+   otherwise it answers `available: false` with
+   `reason: not_enough_success_runs`: say how many there are and offer to
+   look again later. `suggestion.required_tools` lists the tools every
+   successful run called that are not required yet. `profile` shows ranges
+   (tool calls, answer length, final agent) for reference only: they vary
+   with the work and are not suggested as rules.
+2. Show the user the suggestion and the ranges, with what each rule would
+   catch; tools that send, create or post first. Nothing is saved yet.
+3. Save only what the user picks, with the rest of `metadata` unchanged
+   (`update_schedule(metadata=…)`).
+4. Read the next run with `list_schedule_runs`:
+   `result.completion_check.criteria` lists each rule as
+   `{id, kind, target, passed, observed}`.
+
+A rule that good runs also break (an exact tool count, text the answer words
+differently each time) turns good runs into `contract_unmet`. Prefer
+required tools and a fixed line the last agent always writes, such as
+"Report sent".
+
+## Running only when there is work
+
+A schedule that starts workers of a squad board
+([squad-design.md](squad-design.md), pattern 8) can skip a beat when the
+board has nothing for them:
+`"metadata": {"precondition": {"type": "board_has_work", "board": "<board name>", "work": "claimable"}}`.
+`claimable` (for workers) means a task can be taken now; `active` (for a
+reviewer) means any task is open, claimed or waiting for review. An archived
+board has no work. Setting or changing this key needs an owner or admin key:
+a member's key gets 400 "Only organization admins can set a run condition on
+a schedule." whatever the board. A member can still save other changes to a
+schedule that already has one (send the same value back) or remove it.
+
+- A skipped beat calls no model and costs nothing. Its run has outcome
+  `skipped_no_work` and a `session_id` starting with `skipped:` that has no
+  messages; it sends no alert. Beats skipped one after another fold into one
+  run row: `result.skipped_count` says how many ("Skipped ×N" in the web
+  app), `result.first_skipped_at` when the first was, and the row's times
+  are the latest. Count beats with `skipped_count`, not rows.
+- When the board cannot be checked (it was removed, or the board feature is
+  off) the beat runs as usual.
+- Repeating schedules only. The board must already exist (its first task
+  creates it); otherwise 400.
+- Run Now and retries run whatever the board holds.
 
 ## Running now
 
@@ -109,7 +178,7 @@ one started in the last 30 seconds, it answers `already_running` with
 | Want | How |
 | --- | --- |
 | Did it run, when next | `list_schedules`: `last_run_at`, `run_count` (completed runs only), `next_run_at`, `enabled`. It returns at most 100; with a member's key, only the schedules that member created. One schedule: `junis_api GET /management/schedules/<id>` |
-| Each run's session, status and verdict | `junis_api GET /management/schedules/<id>/runs`, newest first. Filters: `status` (`pending`, `running`, `completed`, `timeout`, `failed`), `limit` (up to 200), `offset` |
+| Each run's session, status and verdict | `list_schedule_runs(schedule_id)` (or `junis_api GET /management/schedules/<id>/runs`), newest first. Filters: `status` (`pending`, `running`, `completed`, `timeout`, `failed`), `limit` (up to 200), `offset` |
 | What it produced | The run's `session_id` → `get_session_messages` |
 | Which tools the run called, and which failed or were blocked | `list_tool_calls(agent=<name>, days=1)` (names, status ok / error / blocked, duration; never argument values), `tool_call_summary(days)` for the organization. Kept 90 days. A "tool not available" answer, a blocked write or a connection that silently was not there shows here first |
 | Why it stopped running | `task_metadata.disabled_reason` in `list_schedules`: `credit_exhausted` (the payer adds credits and you enable it again), `owner_inactive` (the creator's account is gone or suspended; recreate the schedule as another owner or admin). A schedule with no successful run and no edit for 30 days is also switched off, without a reason |
@@ -130,8 +199,10 @@ failed run may have no result; read `error_message`).
 | `loop_incomplete` | The loop's last report says items remain (`K<N`); the loop ended before the work did |
 | `confirmation_required` | A tool on the agent's confirmation list was needed, and a scheduled run has nobody to approve it, so it was not run. Take the tool off the list (`set_agent_confirmation_tools`) or have the squad prepare instead of act ([improving.md](improving.md)). An action whose risk is `confirm` behaves the same way and cannot be taken off a list: an unattended squad needs actions a person approved with risk `auto` ([actions.md](actions.md)) |
 | `required_tool_missing` | A tool in `metadata.required_tools` never succeeded (see above) |
+| `contract_unmet` | A rule of `metadata.contract` was broken; `result.completion_check.criteria` says which, with `target` and `observed` ("Success rules") |
+| `skipped_no_work` | The precondition found no work on the board: no model call, no cost, no messages. Consecutive skipped beats share one row (`result.skipped_count`). Not a fault ("Running only when there is work") |
 | `transient_error_only`, `transient_error_present` | A temporary provider error was the whole answer, or part of it |
-| `model_error_present` | A model error message is part of the answer |
+| `model_error_present` | A model error message is part of the answer, or a model declined a step (the answer then contains "The model declined this request") |
 | `truncated` | An error ended the run after part of an answer (run status `timeout`); the partial answer is kept and `error_message` says why. A run cut at the 5-hour limit is `failed` instead |
 | `failed` | The run failed; read `error_message` |
 | `stopped` | A person stopped the run (`cancel_run`, Stop in the app). The status stays `completed` and the partial answer is kept; it is not retried, sends no alert and is left out of "Lessons from runs" |
@@ -152,7 +223,11 @@ runs unattended.
 
 `result.evidence.input_injection.<agent>.empty` lists the placeholders
 (`{key}` or `{key?}`) that reached that agent empty: the hand-over that failed
-([handoff.md](handoff.md)).
+([handoff.md](handoff.md)). `result.evidence.agents_dropped` lists sub-agents
+that could not be built, so the run went on without them; the parent's
+`get_agent_effective_config` shows them under `unresolved_children`. A run
+with `process_deviation` succeeded but skipped a tool that every successful
+run of the last 30 days called: worth a look, not a verdict.
 
 Completed runs regularly turn out not to have done their job: a hand-over with
 empty text so nothing was sent, a connection that silently was not there, an

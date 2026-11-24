@@ -136,7 +136,7 @@ https://example.com/blog 를 매주 월요일 요약하는 스쿼드 만들고 �
 | 그래프 질문 | 주변 노드, 경로, 부분 그래프 및 스냅숏을 모델 호출 없이 조회. `as_of` 날짜를 주면 그 시점의 사실을 씀. 배관 및 계장 도면용 what-if 도구가 밸브를 닫았을 때 끊기는 곳을 알려 줌 |
 | 데이터베이스 | PostgreSQL, Oracle, MySQL 또는 MariaDB 및 SQL Server를 읽기 전용 권한만 준 계정으로 Knowledge 소스에 연결. 쿼리는 실행 전에 가드가 검사하고 값 없이 기록이 남음 |
 | 의미 계층(PostgreSQL 전용) | 사람이 쿼리 템플릿, 용어집 및 지표를 승인하면 에이전트가 그것으로 답함. 데이터베이스 역할로 사람마다 조회할 수 있는 행 및 열을 정함 |
-| 스쿼드 | 오케스트레이터가 요청을 하위 에이전트로 보내고 하위 에이전트는 순차, 병렬 또는 루프로 실행. 스쿼드끼리 호출하고 웹 채팅에서 사용자에게 질문 가능 |
+| 스쿼드 | 오케스트레이터가 요청을 하위 에이전트로 보내고 하위 에이전트는 순차, 병렬, 목록의 항목마다 한 번씩, 또는 루프로 실행. 목록 정리(병합·중복 제거·필터·정렬)는 모델 없이 처리. 스쿼드끼리 호출하고 웹 채팅에서 사용자에게 질문 가능 |
 | 스쿼드 코드 관리 및 버전 | 스쿼드를 JSON 파일 하나로 내보내 실제 조직과 비교한 계획을 본 뒤 적용. 에이전트 변경마다 버전이 남고 되돌리기 가능 |
 | 실행 및 감사 | 스케줄, Slack, CI 또는 External API로 실행. 모든 도구 호출이 상태와 함께 기록됨 |
 | Actions | 조직의 자체 시스템에 대한 타입이 정해진 동작(HTTP API, 서명 웹훅 또는 등록된 MCP 서버의 도구 하나). 사람이 웹앱에서 정의를 승인해야 에이전트가 쓸 수 있고, 실행마다 한 명 또는 두 명의 확인을 요구할 수 있으며 모든 실행이 기록됨 |
@@ -162,11 +162,11 @@ https://example.com/blog 를 매주 월요일 요약하는 스쿼드 만들고 �
 | 사람 확인 | 웹 채팅의 질문 카드 및 도구별 승인 목록 |
 | 시뮬레이션 | 텍스트 하나에 여러 라운드 반응하고 인터뷰도 가능한 가상 커뮤니티(조직이 등록한 키 필요) |
 
-대화 모델은 55개이며 에이전트마다 지정.
+대화 모델은 56개이며 에이전트마다 지정.
 
 | 계열 | 모델 |
 | --- | --- |
-| Anthropic | Claude Fable 5 및 5.1, Opus 4.8, 5 및 5.5, Sonnet 4.6, 5 및 5.5 |
+| Anthropic | Claude Fable 5, 5.1 및 5.2, Opus 4.8, 5 및 5.5, Sonnet 4.6, 5 및 5.5 |
 | OpenAI | GPT-5.4부터 GPT-6.1까지(sol, terra, luna 및 astra 포함) |
 | Google | Gemini 2.5부터 3.8까지, flash 및 pro |
 | 오픈 웨이트 및 기타 | DeepSeek V4 및 V4.1, Qwen 3.6, Kimi K2.6 및 K3.1, GLM 5.1 및 5.3, Grok 4.3 및 4.6, MiniMax M2.7 및 M3.1, MiMo V2.5 |
@@ -265,13 +265,14 @@ junis.mjs install | uninstall | mcp [--lazy]
 
 | 에이전트 | 시험 내용 |
 | --- | --- |
-| Claude Code | 동작 평가: `evals/`의 `claude plugin eval` 사례 25개. 사례마다 실제로 격리된 세션에서 모의 주니스 서버를 상대로 플러그인을 켠 상태 및 끈 상태로 각 3회 실행. 그 밖에 `claude plugin validate .`, 설치 시험 및 MCP 핸드셰이크 시험 |
+| Claude Code | 동작 평가: `evals/`의 `claude plugin eval` 사례 28개. 사례마다 실제로 격리된 세션에서 모의 주니스 서버를 상대로 플러그인을 켠 상태 및 끈 상태로 각 3회 실행. 그 밖에 `claude plugin validate .`, 설치 시험 및 MCP 핸드셰이크 시험 |
 | Codex, Cursor, Gemini CLI, GitHub Copilot CLI, OpenCode | 설치 시험 및 MCP 핸드셰이크 시험. 동작 평가 없음 |
 | VS Code (Copilot) | 설치 계획(dry run) 및 MCP 핸드셰이크 시험 |
 | Devin Desktop, Claude Desktop | MCP 핸드셰이크 시험. 설정 파일 위치는 시험하지 않음 |
 
 최근 전체 평가는 2026년 11월 4일, 그날 기준 스킬 및 당시 사례 20개로 실행. 이후 스킬 변경분은 다시
-측정하지 않았고, 그 뒤에 추가한 Actions 사례 5개는 아직 실행하지 않음.
+측정하지 않았고, 그 뒤에 추가한 사례 8개(Actions 5개, `builds-a-front-end-only-app`,
+`improves-a-squad-from-its-ledger`, `measures-the-question-index-before-turning-it-on`)는 아직 실행하지 않음.
 
 | 결과 | 사례 |
 | --- | --- |

@@ -1,0 +1,277 @@
+<!doctype html>
+<!-- junis-skeleton: canvas2d@2 — copy this file unchanged and write only inside the junis:region blocks -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- <junis:region name="board"> -->
+<!-- The leaderboard. "sort":"asc" when a lower score is better (the kernel follows it). Optional score limits: item 12 of references/window-junis.md -->
+<script type="application/json" id="junis-space">{"schema":"junis.space/v1","leaderboards":[{"key":"main","label":"High score","sort":"desc"}]}</script>
+<!-- </junis:region> -->
+<!-- <junis:region name="title"> -->
+<title>Game title</title>
+<!-- </junis:region> -->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#0b1020}
+body{font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:#fff}
+#jx-app{position:absolute;inset:0;height:100dvh;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#jx-game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#jx-hud{position:absolute;inset:0;pointer-events:none;box-sizing:border-box;padding:calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 12px) calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);isolation:isolate}
+#jx-hud [data-jx-ctl]{pointer-events:auto;touch-action:none}
+#jx-hud::before{content:"";position:absolute;left:0;right:0;top:0;height:120px;background:linear-gradient(rgba(6,12,28,.5),rgba(6,12,28,0));z-index:-1}
+#jx-overlay{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:center;pointer-events:none;background:rgba(8,14,30,.38)}
+#jx-overlay.jx-show{display:flex}
+.jx-panel{box-sizing:border-box;max-width:min(300px,calc(var(--jx-w,100vw) - 124px));margin:15dvh 0 0;text-align:center;padding:20px 20px 18px;border-radius:18px;background:rgba(10,18,40,.78)}
+#jx-ov-title{margin:0 0 8px;font-size:26px;letter-spacing:.02em}
+#jx-ov-sub{margin:0 0 14px;font-size:14px;line-height:1.55;opacity:.92;white-space:pre-line}
+#jx-ov-cta{pointer-events:auto;border:0;font:inherit;padding:11px 22px;border-radius:999px;background:#ffd23f;color:#1b1b1b;font-weight:700;font-size:16px}
+#jx-ov-cta:empty{display:none}
+#jx-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#jx-btn-pause{position:absolute;right:calc(env(safe-area-inset-right) + 10px);top:calc(env(safe-area-inset-top) + 62px);width:44px;height:44px;border:0;border-radius:12px;background:rgba(0,0,0,.35);color:#fff;font-size:18px}
+@media (max-height:420px){.jx-panel{padding:12px 16px}#jx-ov-title{margin-bottom:4px;font-size:20px}#jx-ov-sub{margin-bottom:8px;font-size:13px;line-height:1.4}#jx-ov-cta{padding:8px 18px;font-size:15px}}
+#jx-app.jx-side #jx-overlay{align-items:center;justify-content:flex-start}.jx-side .jx-panel{max-width:min(300px,var(--jx-side));margin:0 8px}
+/* <junis:region name="css"> */
+/* Styles for your own HUD and screens. Never define or restyle a jx- name */
+.top{display:flex;justify-content:space-between}.stat b{font-size:24px}
+/* </junis:region> */
+</style>
+</head>
+<body>
+<div id="jx-app" data-jx-mode="boot">
+  <canvas id="jx-game"></canvas>
+  <div id="jx-hud">
+<!-- <junis:region name="hud"> -->
+<!-- Your HUD. Taps pass through it to the game; a button of yours gets taps only with the attribute data-jx-ctl="name" (the one jx- name you may add) -->
+    <div class="top"><div class="stat"><b id="h-score">0</b></div></div>
+<!-- </junis:region> -->
+    <button id="jx-btn-pause" data-jx-ctl="pause" aria-label="Pause">Ⅱ</button>
+  </div>
+  <div id="jx-overlay" class="jx-show"><div class="jx-panel"><h1 id="jx-ov-title">Loading…</h1><p id="jx-ov-sub"></p><button id="jx-ov-cta" type="button" data-jx-ctl="go"></button></div></div>
+  <p id="jx-live" role="status"></p>
+</div>
+<script type="module">
+// KERNEL canvas2d@2 — fixed, do not edit
+const STEP = 1 / 60, STEP_MS = 1000 / 60, MAX_FRAME_MS = 100;
+const $ = (id) => document.getElementById(id);
+const app = $('jx-app'), canvas = $('jx-game');
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const damp = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
+
+const rng = (() => {           // mulberry32
+  let s = 1;
+  const next = () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  return { seed(n) { s = (n | 0) || 1; }, next, range: (a, b) => a + (b - a) * next(), int: (a, b) => Math.floor(a + (b - a + 1) * next()) };
+})();
+
+// Saves and scores go through window.junis; a call returns null where it is not available and the game keeps running
+const J = window.junis || null;
+const ASC = (() => { try { return JSON.parse($('junis-space').textContent).leaderboards[0].sort === 'asc'; } catch (_) { return false; } })();
+const better = (a, b) => b == null || (ASC ? a < b : a > b);
+
+const G = { mode: 'boot', modeT: 0, score: 0, t: 0, best: ASC ? null : 0, seed: 1, run: 0, reason: '' };
+const input = { down: false, id: -1, x: 0, y: 0, sx: 0, sy: 0, dx: 0, dy: 0, moved: 0, w: 1, h: 1, t: 0, t0: 0, heldMs: 0, keys: Object.create(null) };
+const game = {};
+
+async function loadBest() { const r = J && await J.storage.get('best'); if (r && r.ok && r.exists && typeof r.value === 'number' && better(r.value, G.best)) { G.best = r.value; paint(); } }
+async function saveBest(opt) {
+  const r = J && await J.storage.set('best', G.best, opt);
+  if (!r || r.code !== 'conflict' || !r.current) return;
+  const v = r.current.value;
+  if (typeof v === 'number' && !better(G.best, v)) { G.best = v; paint(); } else saveBest({ ifMatch: r.current.etag });
+}
+// One run covers back-to-back rounds for 10 s (the platform takes 6 run.end a minute) and submits the best; a throttled, unreachable or timed-out run.end is sent again first (4 tries at most; a run never scores twice)
+let chain = Promise.resolve(), runAt = 0, triedAt = -1e9, held = null, timer = 0;
+const again = (r) => !!r && (r.code === 'throttled' || r.code === 'unavailable' || r.code === 'timeout');
+const queue = (fn) => { if (J) chain = chain.then(fn, fn); };
+const runStart = () => queue(async () => { const t = performance.now(); if (runAt || t - triedAt < 5000) return; triedAt = t; if (await J.run.start()) runAt = performance.now(); });
+function runEnd() {
+  clearTimeout(timer);
+  queue(async () => {
+    if (!runAt || held == null || G.mode === 'playing') return;
+    const left = 10000 - (performance.now() - runAt);
+    if (left > 0) { timer = setTimeout(runEnd, left); return; }
+    const score = held; let r;
+    for (let n = 1; (r = await J.run.end({ score })) && again(r) && n < 4; n++) await new Promise((ok) => setTimeout(ok, r.retryAfterMs || 5000));
+    runAt = 0; if (r && !again(r) && held === score) held = null;
+  });
+}
+if (J) J.on('pause', () => { if (G.mode === 'playing') setMode('paused'); sfx.suspend(); });
+
+const sfx = (() => {
+  let ac = null, master = null, dr = null;
+  const unlock = () => { try { if (!ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; ac = new AC(); master = ac.createGain(); master.gain.value = 0.22; master.connect(ac.destination); } if (ac.state === 'suspended') ac.resume(); } catch (_) { ac = null; } };
+  const ok = () => ac && ac.state === 'running';
+  const tone = (f0, dur = 0.12, type = 'square', vol = 0.5, f1 = f0) => { if (!ok()) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(Math.max(20, f0), t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02); };
+  const noise = (dur = 0.25, vol = 0.5) => { if (!ok()) return; const n = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0); let x = 12345; for (let i = 0; i < n; i++) { x = (x * 1103515245 + 12345) & 0x7fffffff; d[i] = (x / 0x3fffffff - 1) * (1 - i / n); } const s = ac.createBufferSource(), g = ac.createGain(); g.gain.value = vol; s.buffer = buf; s.connect(g); g.connect(master); s.start(); };
+  const drone = (freq, vol) => { if (!ok()) return; if (!dr) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sawtooth'; g.gain.value = 0; o.connect(g); g.connect(master); o.start(); dr = { o, g }; } dr.o.frequency.setTargetAtTime(Math.max(20, freq), ac.currentTime, 0.08); dr.g.gain.setTargetAtTime(vol, ac.currentTime, 0.08); };
+  const suspend = () => { if (ac && ac.state === 'running') ac.suspend(); };
+  return { unlock, tone, noise, drone, suspend, get state() { return ac ? ac.state : 'none'; } };
+})();
+
+const hud = (() => { const cache = Object.create(null);
+  return { text(id, v) { v = String(v); if (cache[id] !== v) { cache[id] = v; const el = $(id); if (el) el.textContent = v; } }, el: $ }; })();
+const overlay = { el: $('jx-overlay'), title: $('jx-ov-title'), sub: $('jx-ov-sub'), cta: $('jx-ov-cta') };
+
+function paint() {
+  const o = game.overlay ? game.overlay(G.mode, G) : null;
+  overlay.el.classList.toggle('jx-show', !!o);
+  if (!o) return '';
+  overlay.title.textContent = o.title || ''; overlay.sub.textContent = o.sub || ''; overlay.cta.textContent = o.cta || '';
+  return (o.title || '') + '. ' + (o.sub || '');
+}
+function setMode(m) { G.mode = m; G.modeT = 0; app.dataset.jxMode = m; if (m === 'playing') last = 0; $('jx-live').textContent = paint(); }
+function resetAll() { G.score = 0; G.t = 0; G.reason = ''; game.reset(G); setMode('title'); }
+function startRun() { game.start && game.start(G); setMode('playing'); runStart(); }
+function restart() { G.run += 1; rng.seed(Math.imul(G.seed, 7919) + G.run); G.score = 0; G.t = 0; G.reason = ''; game.reset(G); startRun(); }
+function gameOver(reason, scored = true) {
+  G.reason = reason || '';
+  if (scored && better(G.score, G.best)) { G.best = G.score; saveBest(); }
+  if (scored && better(G.score, held)) held = G.score;
+  setMode('gameover'); runEnd();
+}
+function togglePause() { if (G.mode === 'playing') setMode('paused'); else if (G.mode === 'paused') setMode('playing'); }
+function onTap() {
+  if (G.mode === 'title') startRun();
+  else if (G.mode === 'gameover') { if (G.modeT >= 400) restart(); }
+  else if (G.mode === 'paused') setMode('playing');
+  else send('tap');
+}
+const send = (type, code) => { if (game.onInput && G.mode === 'playing') game.onInput(type, input, G, code); };
+
+function readPointer(e) { const r = app.getBoundingClientRect(); input.x = e.clientX - r.left; input.y = e.clientY - r.top; input.w = r.width; input.h = r.height; }
+app.addEventListener('pointerdown', (e) => {
+  sfx.unlock();
+  if (e.target.closest && e.target.closest('[data-jx-ctl]')) return;
+  if (input.down) return;
+  try { app.setPointerCapture(e.pointerId); } catch (_) { /* synthetic event */ }
+  input.down = true; input.id = e.pointerId; readPointer(e); input.sx = input.x; input.sy = input.y; input.dx = 0; input.dy = 0; input.moved = 0; input.t0 = input.t = e.timeStamp; input.heldMs = 0;
+  send('down');
+  e.preventDefault(); window.focus();
+});
+app.addEventListener('pointermove', (e) => {
+  if (!input.down || e.pointerId !== input.id) return;
+  readPointer(e); input.t = e.timeStamp; input.heldMs = input.t - input.t0; input.dx = input.x - input.sx; input.dy = input.y - input.sy; input.moved = Math.max(input.moved, Math.hypot(input.dx, input.dy));
+  send('move');
+});
+const endPointer = (e) => {
+  if (!input.down || e.pointerId !== input.id) return;
+  input.down = false; input.id = -1; input.t = e.timeStamp; input.heldMs = input.t - input.t0;
+  send('up');
+  if (e.type === 'pointerup' && input.moved < 10) onTap();
+};
+app.addEventListener('pointerup', endPointer);
+app.addEventListener('pointercancel', endPointer);
+let keyAt = -1e9;
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return; input.keys[e.code] = true; sfx.unlock();
+  if (e.code === 'Space' || e.code === 'Enter') { keyAt = performance.now(); onTap(); e.preventDefault(); }
+  else if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
+  else send('key', e.code);
+});
+window.addEventListener('keyup', (e) => { delete input.keys[e.code]; });
+window.addEventListener('blur', () => { for (const k in input.keys) delete input.keys[k]; });
+$('jx-btn-pause').addEventListener('click', togglePause);
+overlay.cta.addEventListener('click', () => { if (performance.now() - keyAt > 300) onTap(); });
+
+// --- 2D canvas ---
+const ctx = canvas.getContext('2d');
+const L = { w: 360, h: 640 };
+const view = { scale: 1, ox: 0, oy: 0, dpr: 1, w: 1, h: 1 };
+function resize() {
+  const w = Math.max(1, app.clientWidth), h = Math.max(1, app.clientHeight), dpr = Math.min(window.devicePixelRatio || 1, 2, 8192 / w, 8192 / h);
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  L.h = clamp(Math.round(h / (w / L.w)), 520, 780);
+  const s = Math.min(w / L.w, h / L.h);
+  view.scale = s; view.ox = (w - L.w * s) / 2; view.oy = (h - L.h * s) / 2; view.dpr = dpr; view.w = w; view.h = h;
+  const hudEl = $('jx-hud'); hudEl.style.left = view.ox + 'px'; hudEl.style.right = 'auto'; hudEl.style.width = (L.w * s) + 'px';
+  app.classList.toggle('jx-side', view.ox >= 176); app.style.setProperty('--jx-side', (view.ox - 16) + 'px'); app.style.setProperty('--jx-w', (L.w * s) + 'px');
+  if (game.resize) game.resize(L);
+}
+new ResizeObserver(() => { resize(); if (firstFrame) draw(); }).observe(app);
+const toLogical = (px, py) => ({ x: (px - view.ox) / view.scale, y: (py - view.oy) / view.scale });
+
+// --- Loop ---
+let acc = 0, last = 0, hidden = document.hidden, firstFrame = false;
+function tick() { G.modeT += STEP_MS; if (G.mode === 'playing') { G.t += STEP_MS; game.update(STEP, G, input); } if (game.fx) game.fx(STEP, G); }
+function draw(alpha = 1) {
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.fillStyle = '#05070f'; ctx.fillRect(0, 0, view.w, view.h);
+  ctx.save(); ctx.translate(view.ox, view.oy); ctx.scale(view.scale, view.scale);
+  ctx.beginPath(); ctx.rect(0, 0, L.w, L.h); ctx.clip();
+  game.render(ctx, G, alpha);
+  ctx.restore();
+  if (game.hud) game.hud(G);
+  if (!firstFrame) { firstFrame = true; performance.mark('junis:first-frame'); }
+}
+function frame() {
+  requestAnimationFrame(frame);
+  const now = performance.now(), d = last ? Math.min(now - last, MAX_FRAME_MS) : 0; last = now;
+  if (hidden) return;
+  acc += d; let n = 0;
+  while (acc >= STEP_MS && n < 6) { tick(); acc -= STEP_MS; n++; }
+  if (n === 6) acc = 0;
+  draw(acc / STEP_MS);
+}
+document.addEventListener('visibilitychange', () => {
+  hidden = document.hidden;
+  if (hidden) { if (G.mode === 'playing') setMode('paused'); sfx.suspend(); } else { acc = 0; last = 0; }
+});
+
+function boot() {
+  G.seed = (Date.now() % 2147483647) || 1;
+  rng.seed(G.seed); if (game.init) game.init(G); resize(); resetAll();
+  loadBest();
+  draw();
+  requestAnimationFrame(frame);
+}
+// GAME REGIONS. Game logic never uses Math.random, Date.now, performance.now or setTimeout: use rng, G.t and dt. `await` works here
+
+// <junis:region name="config">
+// Every tunable number and colour goes in this one table (later edits usually touch only this table)
+const CFG = { speed: 1.2, roundMs: 10000 };
+// </junis:region>
+
+// <junis:region name="state">
+// Decoration (particles and the like) lives in W; everything that decides the outcome lives in G. game.reset resets all of it. Randomness comes from rng only
+const W = { fxT: 0 };
+game.reset = (G) => { Object.assign(G, { spin: 0, taps: 0 }); };
+game.start = () => { sfx.tone(440, 0.12, 'triangle', 0.5, 880); };
+game.overlay = (m, G) => {
+  if (m === 'title') return { title: 'Game title', sub: 'One or two lines on how to play', cta: 'Tap to start' };
+  if (m === 'paused') return { title: 'Paused', sub: '', cta: 'Tap to continue' };
+  if (m === 'gameover') return { title: 'Game over', sub: 'Score ' + G.score + ' · Best ' + G.best, cta: 'Tap to play again' };
+  return null;
+};
+// </junis:region>
+
+// <junis:region name="input">
+// Called only while playing. type: 'down' | 'move' | 'up' | 'tap' | 'key' (the key code is the 4th argument).
+// inp: {x,y,sx,sy,dx,dy,moved,w,h,keys} in CSS px of the whole frame, plus t (event time, ms) and heldMs (ms since the press began)
+// toLogical(inp.x, inp.y) gives the position in playfield coordinates (the playfield is letterboxed in a wide frame)
+game.onInput = (type, inp, G) => { if (type === 'tap') G.taps += 1; };
+// </junis:region>
+
+// <junis:region name="update">
+// Fixed step (dt = 1/60 s), called only while playing. End the round with gameOver('reason')
+game.update = (dt, G, inp) => { G.spin += CFG.speed * dt; if (G.taps >= 3) { G.score += 1; G.taps = 0; } if (G.t >= CFG.roundMs) gameOver('time'); };
+game.fx = (dt) => { W.fxT += dt; };
+// </junis:region>
+
+// <junis:region name="render">
+// Draw in logical coordinates (width L.w = 360, height L.h = 520–780). The skeleton applies the transform, letterbox and clip
+// alpha (0..1) is the fraction of a step since the last update; ignore it if you do not interpolate
+game.render = (c, G, alpha) => {
+  const g = c.createLinearGradient(0, 0, 0, L.h); g.addColorStop(0, '#101a3a'); g.addColorStop(1, '#2a1f4d'); c.fillStyle = g; c.fillRect(0, 0, L.w, L.h);
+  c.save(); c.translate(L.w / 2, L.h / 2); c.rotate(G.spin); c.fillStyle = '#ffd23f'; c.fillRect(-40, -40, 80, 80); c.fillStyle = '#ff8a5c'; c.fillRect(-12, -70, 24, 24); c.restore();
+};
+// </junis:region>
+
+// <junis:region name="hud-update">
+game.hud = (G) => { hud.text('h-score', G.score); };
+// </junis:region>
+
+boot();
+</script>
+</body>
+</html>
