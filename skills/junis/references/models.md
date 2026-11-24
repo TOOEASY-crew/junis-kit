@@ -77,7 +77,7 @@ spending by model is at `https://junis.ai/usage`.
 
 | Family | Rules |
 | --- | --- |
-| Claude, current generation | No `temperature`. Works with MCP tools at any effort. Claude 5 reasons by default, and `none` differs by model: sonnet-5 turns it off; sonnet-5-5 answers without reasoning first but writes short notes between tool calls; opus-5-5, fable-5 and fable-5-1 refuse to switch it off, and the other Claude 5 models are treated the same way: `none` is sent as adaptive reasoning at `low`. |
+| Claude, current generation | No `temperature`. Works with MCP tools at any effort. Claude 5 reasons by default, and `none` differs by model: sonnet-5 turns it off; sonnet-5-5 answers without reasoning first but writes short notes between tool calls; opus-5-5, fable-5, fable-5-1 and fable-5-2 refuse to switch it off, and the other Claude 5 models are treated the same way: `none` is sent as adaptive reasoning at `low`. For fable-5-2 see "Claude Fable 5.2" below. |
 | GPT, current generation | No `temperature`. Any effort works with tools. gpt-6-astra and gpt-6.1-sol cannot switch reasoning off: `none` is sent as `low` and billed. `-pro` models need `medium` or higher (some only `high`); `low` is raised to `medium`. |
 | Azure (`azure/gpt-6-*`, `azure_ai/DeepSeek-*`) | `azure/gpt-6-*` behave like the same GPT models (Responses API, no `temperature`; astra raises `none` to `low`). `azure_ai/DeepSeek-*`: `temperature` is not sent and images are not passed on. Web search on either adds the `openai_web_search` tool. Only these two families are wired through Azure; Claude or other models under `azure_ai/` are not. |
 | Gemini | Set `temperature=1.0` on direct `gemini/` agents (the stored default 0.7 is sent to them). `none` turns reasoning off on 3.8-flash, 3-flash-preview, 3.1-flash-lite and 2.5-flash; other 3.x models still reason at their lowest level. |
@@ -86,6 +86,53 @@ spending by model is at `https://junis.ai/usage`.
 
 `max` effort is accepted everywhere and is mapped to the highest level the
 model supports. Other spellings are in [agent-settings.md](agent-settings.md).
+
+### Claude Fable 5.2
+
+As of 2026-11-19 `anthropic/claude-fable-5-2` is the newest Fable model in
+the list. Its reasoning cannot be switched off (`none` is sent as `low`), so
+the effort level is the main control over its cost and speed. The provider's
+guidance per level:
+
+| Effort | Use it for |
+| --- | --- |
+| `low` | Fast sub-agents and well-specified steps. `none` is sent as `low`. |
+| `medium` | Chat and orchestrators. |
+| `high` | Hard research, planning and long unattended runs. At `high` and above it reasons before almost every reply, even a greeting. |
+| `max` | Only the hardest open-ended problems: much slower and far more tokens for an uneven gain. |
+
+- The provider reports good results with it as the planner and orchestrator
+  for other models. Check which model the workers run on: every sub-agent
+  call is billed at its own model's price.
+- It wrote its text and a hand-over in the same reply in 8 of 8 measured runs
+  (2026-11-19); the empty-message problem of Gemini 3.7 and 3.8 in
+  [handoff.md](handoff.md) was not seen.
+- Lines that tell the model to think less ("answer directly") do not reduce
+  its reasoning at `medium` and above. Remove them and lower the effort.
+- Do not ask it in an instruction to write out its reasoning in the answer.
+  The provider can decline such a request. A request declined before any
+  answer text comes back as a one-paragraph notice that says "The model
+  declined this request" (after a warning sign); it is not sent again,
+  because the same request is declined the same way. In a scheduled run that
+  notice gives the run the outcome `model_error_present`. The notice is
+  given for Claude models called directly (`anthropic/...`) only, and not
+  to an agent with an output schema: there a declined request still ends
+  with an empty answer. A short explanation of the result is fine to ask
+  for.
+- At `low` and `medium` on long multi-step work it sometimes stops before
+  the work is done. If a run shows this, raise the effort to `high`, or add
+  to the instruction that it must finish the whole task and stop only when
+  it needs the user or meets a deliberate blocker (the provider's remedy).
+- It follows cautious notes closely. Notes that pile up in memory or
+  instructions ("never retry", "always ask first") can therefore hold back
+  routine work: remove the ones whose reason no longer holds, and write the
+  scope and the exception into the rule itself.
+- A sub-agent called as a tool, and a run sent with `stream: false`, wait for
+  the whole reply in one request. At `high` or `max` with a long output that
+  request can pass the platform's 15-minute limit. Keep such agents at `low`
+  or `medium`, or keep their output short.
+- Keep `max_output_tokens` at its default. Reasoning counts toward it, and a
+  small value can end the reply before any text.
 
 ## RAG agents
 

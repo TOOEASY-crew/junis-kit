@@ -22,7 +22,7 @@ function asText(value) {
 
 // Tools whose ordinary use removes or replaces data.
 export const DESTRUCTIVE_TOOL =
-  /^(delete_|remove_|unlink_|unassign_)|^knowledge_\w+_delete$|^actions_\w+_delete$|^(write_skill_file|switch_organization|update_soul_content|update_memory_content|apply_team_changes|update_mcp_platform|manage_skill_bundle|rollback_agent|restore_soul_version|knowledge_changes_webhook_set|set_agent_enabled_tools|set_agent_confirmation_tools|set_tool_safety|set_flag_org_opt_out|squad_apply|actions_run|actions_agent_set|actions_connection_update|actions_draft_update|actions_import_openapi|actions_import)$/;
+  /^(delete_|remove_|unlink_|unassign_)|^knowledge_\w+_delete$|^actions_\w+_delete$|^(write_skill_file|switch_organization|update_soul_content|update_memory_content|apply_team_changes|update_mcp_platform|manage_skill_bundle|rollback_agent|squad_rollback|restore_soul_version|restore_skill_version|resolve_memory_provenance|knowledge_changes_webhook_set|set_agent_enabled_tools|set_agent_confirmation_tools|set_tool_safety|set_flag_org_opt_out|squad_apply|actions_run|actions_agent_set|actions_connection_update|actions_draft_update|actions_import_openapi|actions_import)$/;
 
 // Tools that always replace or remove something, whatever their arguments
 // (each needs a reason here: a tool on the list above without one would be
@@ -31,6 +31,7 @@ const ALWAYS_DESTRUCTIVE = {
   squad_apply: 'squad_apply changes every agent the squad document differs on (create, update, sub-agents, MCP links and tool lists).',
   rollback_agent: 'rollback_agent restores an earlier version of the agent and replaces its current settings.',
   restore_soul_version: 'restore_soul_version replaces the current soul or identity text with an earlier version, for every agent of the organization.',
+  restore_skill_version: 'restore_skill_version replaces the current skill (instruction, scripts and files) with an earlier version for every agent it is assigned to, or brings a deleted skill back.',
   knowledge_changes_webhook_set: "knowledge_changes_webhook_set makes the platform send the organization's Knowledge changes to an outside address every minute, replacing any address set before.",
   set_agent_enabled_tools: 'set_agent_enabled_tools replaces which tools of a connection the agent may use.',
   set_agent_confirmation_tools: 'set_agent_confirmation_tools replaces the list of tools that need a human confirmation; in unattended runs those tools are not run at all.',
@@ -46,6 +47,12 @@ const ALWAYS_DESTRUCTIVE = {
 // tool) or is filed for a person's approval; nothing sent can be taken back
 // from here. A dry run only shows the request that would be sent.
 const ACTION_RUN_REASON = 'runs an action in a system outside Junis, or files it for a person to approve; what it sends cannot be taken back from here.';
+
+// Rolling a squad apply back puts every agent it changed back to its state before the apply; without confirm it only previews.
+const SQUAD_ROLLBACK_REASON = 'puts every agent a squad apply changed back to its state before the apply (with force_drifted, also over edits made since).';
+
+// Undoing a memory write removes text from the user's memory; keeping it changes nothing.
+const MEMORY_UNDO_REASON = "resolve_memory_provenance with action undo removes what the agent wrote from the user's memory.";
 
 // A junis.actions/v1 import adds connections and drafts in one call (it never overwrites). The tool previews unless dry_run is
 // false; the External route imports unless dry_run is true — each is asked only when it really writes.
@@ -101,6 +108,8 @@ export function destructiveReason(tool, input = {}) {
   if (/^actions_\w+_delete$/.test(name)) return `${name} removes an action draft or connection on Junis and cannot be undone.`;
   if (ALWAYS_DESTRUCTIVE[name]) return ALWAYS_DESTRUCTIVE[name];
   if (name === 'actions_run') return yes(args.dry_run) ? '' : `actions_run ${ACTION_RUN_REASON}`;
+  if (name === 'squad_rollback') return yes(args.confirm) ? `squad_rollback ${SQUAD_ROLLBACK_REASON}` : '';
+  if (name === 'resolve_memory_provenance') return /^\s*undo\s*$/i.test(asText(args.action)) ? MEMORY_UNDO_REASON : '';
   if (name === 'actions_import') return args.dry_run === false || args.dry_run === 0 || FALSE_WORD.test(asText(args.dry_run).trim()) ? `actions_import ${ACTION_IMPORT_REASON}` : '';
   if (name === 'update_soul_content' || name === 'update_memory_content' || name === 'write_skill_file') {
     return `${name} replaces the whole text. Use the patch tool for edits.`;
@@ -206,6 +215,11 @@ export function destructiveApiReason(method, path = '', { query, body } = {}) {
   if (/^\/management\/agents\/[^/]+\/versions\/[^/]+\/rollback$/.test(route)) {
     return `POST ${route} restores an earlier version of the agent and replaces its current settings.`;
   }
+  if (route === '/management/squad/rollback' && yes(data.confirm)) return `POST ${route} ${SQUAD_ROLLBACK_REASON}`;
+  if (/^\/management\/skills\/[^/]+\/versions\/restore$/.test(route)) {
+    return `POST ${route} replaces the current skill with an earlier version, or brings a deleted skill back.`;
+  }
+  if (/^\/management\/memory\/provenance\/[^/]+\/undo$/.test(route)) return `POST ${route} removes what the agent wrote from the user's memory.`;
   if (/\/skills\/import\/(github|npx|upload)$/.test(route) && yes(data.overwrite)) {
     return `POST ${route} with overwrite=true replaces the existing skill of the same name.`;
   }
@@ -441,6 +455,7 @@ function patternCommandReason(text) {
       overwrite: flag('overwrite') ? true : undefined,
       reveal_secrets: flag('reveal_secrets') ? true : undefined,
       dry_run: flag('dry_run') ? true : undefined,
+      confirm: flag('confirm') ? true : undefined,
     };
     if (name === 'apply_team_changes') return guessed.dry_run ? '' : 'The command runs a batch of team changes that may delete or replace agents.';
     const reason = destructiveReason(name, guessed);
@@ -459,8 +474,9 @@ function patternCommandReason(text) {
     const overwrite = /\boverwrite=["']?true\b|\\?"overwrite\\?"\s*:\s*(true|\\?"true\\?")/i.test(text);
     const removal = /confirm_removal=(1|true|t|yes|y|on)\b/i.test(text);
     const dryRun = /\bdry_run=["']?true\b|\\?"dry_run\\?"\s*:\s*(true|\\?"true\\?")/i.test(text);
+    const confirm = /\bconfirm=["']?true\b|\\?"confirm\\?"\s*:\s*(true|\\?"true\\?")/i.test(text);
     return destructiveApiReason('POST', post[1], {
-      body: { mode: mode ? mode[1] || mode[2] : undefined, overwrite, dry_run: dryRun || undefined },
+      body: { mode: mode ? mode[1] || mode[2] : undefined, overwrite, dry_run: dryRun || undefined, confirm: confirm || undefined },
       query: removal ? { confirm_removal: 'true' } : {},
     });
   }

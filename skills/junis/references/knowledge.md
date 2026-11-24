@@ -8,7 +8,8 @@ reports, product data, drawings, a database.
 - Two systems
 - Knowledge (Second Brain): is it on, the API, fitting the knowledge map, how
   the graph changes, live dashboards and custom front-ends, reading states,
-  asking, limits and cost
+  asking, questions that name no item, recall checks, agent notes, limits and
+  cost
 - Document stores (RAG)
 - Uploading local files
 - Writing documents that search well
@@ -88,6 +89,12 @@ Every Knowledge endpoint of the External API is also a tool:
   graph questions" on the Knowledge page): `knowledge_graph_around`, and verified graph questions `knowledge_graph_templates` /
   `knowledge_graph_template_create` (draft only) / `knowledge_graph_template_test`
   ("Set questions and verified graph questions" below).
+- Finding facts without names, and keeping answers findable: `knowledge_question_index` /
+  `knowledge_question_index_set`, recall checks `knowledge_recall_checks`, `knowledge_recall_check_preview`,
+  `knowledge_recall_check_save`, `knowledge_recall_checks_run`, `knowledge_recall_check_runs`,
+  `knowledge_recall_checks_auto`, `knowledge_recall_check_delete`; agent-note settings
+  `knowledge_agent_notes` / `knowledge_agent_notes_set` ("Questions that name no item" and the two
+  sections after it).
 - Sources: `knowledge_report`, `knowledge_source_coverage`, design notes get/set, CSV/XLSX table
   mapping get/preview/set, `knowledge_source_delete` (destructive — confirm first).
 - Connections: `knowledge_add_postgres_source`, `knowledge_db_connect` (Oracle · MySQL · SQL Server ·
@@ -315,7 +322,7 @@ connects and rejects those items on every sync. So check first, then fit:
 | Way | How |
 | --- | --- |
 | Rename onto what the map has | `"rename": {"types": {"Pump": "Equipment"}, "predicates": {"flowsTo": "feeds"}}` |
-| Add to the map, if `room` allows | `POST /brain/ontology/extend` with `{"entity_types": [{"name": "Supplier", "description": "…", "properties": ["country"]}], "predicates": [{"name": "supplied_by", "src": "Equipment", "dst": "Supplier", "cardinality": "many"}]}`. Adds only (new kinds and relations, properties a kind lacks); never changes an entry. Over a limit or an unusable name: 422, nothing written. `changed: false`: nothing was new. Use these field names (`properties`, `src`, `dst`) through `knowledge_map_extend` too, whatever its description says: other names are dropped and the relation is saved with both ends open |
+| Add to the map, if `room` allows | `POST /brain/ontology/extend` with `{"entity_types": [{"name": "Supplier", "description": "…", "properties": ["country"]}], "predicates": [{"name": "supplied_by", "src": "Equipment", "dst": "Supplier", "cardinality": "many"}]}`. Adds only (new kinds and relations, properties a kind lacks); never changes an entry. Over a limit or an unusable name: 422, nothing written. `changed: false`: nothing was new. Use these field names (`properties`, `src`, `dst`) through `knowledge_map_extend` too, whatever its description says: other names are dropped and the relation is saved with both ends open. A new relation may also carry `key_noun` and `inverse_noun` (one line each, up to 64 characters, in the organization's language): the words people use when they ask about the far end, such as "supplier" and "supplied part" for `supplied_by`. The question index builds its sentences from them ("Questions that name no item"); propose them whenever you add a relation |
 | Leave out what does not fit | `"on_unknown": "skip"`; the response counts what was left out. Tell the user |
 
 Property definitions. A kind may declare `property_defs` for its properties
@@ -492,6 +499,108 @@ it stopped.
 - For complete lists ("all pumps on line 3") use the graph endpoints, which are
   deterministic, rather than an answer.
 - If `/brain/answer` fails with 402, 502 or 503, `/brain/search` still works.
+- A result or citation marked `origin: "agent_note_unreviewed"` comes from a
+  note an agent submitted that no person has reviewed yet (a fact with
+  `unreviewed_only: true` rests on such notes alone). Say so when the answer
+  rests on it ("Agent notes" below).
+
+### Questions that name no item
+
+Symptom: a question with the item's name finds the fact ("who supplies Valve
+A?"), the same question without it does not ("who supplies the pump
+seals?"). The relation question index makes relations findable by the words
+people ask with. It costs embeddings, billed to the organization, so measure
+and ask first:
+
+1. Reproduce: `knowledge_search` with the unnamed question and with the named
+   one. Only the named one finds the relation.
+2. `knowledge_question_index` (`GET /brain/question-index`): `enabled`,
+   `ready`, `progress`, `pending_relations`, and `estimate` (`est_usd_low` to
+   `est_usd_high`, approximate). `available: false`: the platform has it off.
+   `knowledge_question_index_set(enabled=true)` without `confirm_cost` writes
+   nothing and answers `confirm_required: true` with the same estimate (once
+   the index is on, `estimate` is `null`). 503
+   `estimate_unavailable`: the estimate could not be counted right now and
+   nothing was changed; try again shortly rather than turning it on blind.
+3. Ask once, with both costs: turning the index on (the estimate), and
+   measuring it with a recall check (next section) that runs the unnamed
+   question before and after, one search per run. Name the relation the check
+   will expect (from the named search) and let the user confirm it.
+4. After a yes: save the check (a relation target can be given by names:
+   `{"kind": "relation", "src_name", "predicate", "dst_name"}`), run it once
+   (it fails), then call `knowledge_question_index_set(enabled=true, confirm_cost=true)`.
+5. The index builds in the background (`started: false`: queued for the
+   nightly run). Search is unchanged until `ready`; read
+   `knowledge_question_index` again until it is.
+6. Run the same check again and report `newly_passed` and the rank of the
+   target before and after.
+
+Each relation gets one or two short noun phrases made only of the words in
+the map and the graph, in their own language, for example
+`Valve A (Part) supplier Supplier`; no English words are added around them.
+Calling it again with `enabled=true` on an index that is on only builds what
+is missing (no question). `enabled=false` turns it off at once. Relations
+added later are indexed after each ingest and overnight, billed the same way.
+
+### Recall checks: keeping answers findable
+
+A recall check is a question saved with the passages, documents, entities or
+relations Knowledge search must find for it in the top `k` (the same search a
+chat answer uses). Running checks shows whether a change to Knowledge (new
+documents, a map change, a rebuilt graph, the question index) lost or gained
+what people rely on. Each check run costs one Knowledge search, billed to the
+key's user, and no model call: ask before running, and before turning
+automatic runs on. They need a key that sees all of the organization's
+Knowledge: a key whose access is limited to some groups gets 403
+`restricted_scope`.
+
+1. `knowledge_recall_checks` lists the checks with their last result and the
+   latest runs (404 `feature_disabled`: not available here).
+2. "Make this question always find this document":
+   `knowledge_recall_check_preview(question, k)` shows what search finds now,
+   each item with a ready target (one search, nothing saved). Let the user
+   pick the targets; never pick or generate checks yourself.
+3. `knowledge_recall_check_save(question, expected, k, match)` with the chosen
+   targets (`match`: `all` or `any`). A passage cited in an answer can be
+   saved directly as `{"kind": "chunk", "id": "<chunk id>"}` with
+   `origin="answer"`. 422 `target_not_found` or `target_ambiguous` (it lists
+   the candidates) means a target does not resolve. At most 50 checks.
+4. `knowledge_recall_checks_run(ids, wait_s)` (empty `ids` = all) waits up to
+   `wait_s` seconds. On a timeout it returns a `run_id`: follow it with
+   `knowledge_recall_check_runs(run_id=…)`, never start another run.
+5. Report per check: pass or fail, the rank of each target, `newly_failed`
+   and `newly_passed`, and from `changes` what changed in Knowledge since the
+   previous run (`map_version`, `documents_delta`, `decisions_delta`,
+   `documents_updated`, `settings_changed`, `sources`; `first_run` when there
+   was none). 503: the run could not be queued; try again later. A target that no longer exists (`target_gone`: the document
+   was rewritten or removed) needs a new target, not a new question.
+
+The same through `junis_api`: `/brain/recall-checks` (`GET`, `POST` to save,
+`PUT /<id>`, `DELETE /<id>`), `POST /brain/recall-checks/preview`,
+`POST /brain/recall-checks/run`, `GET /brain/recall-checks/runs/<run_id>`,
+`PUT /brain/recall-checks/auto`; agent notes `GET` and
+`PUT /brain/settings/agent-notes`.
+
+`knowledge_recall_checks_auto(enabled=true)` runs all checks by themselves
+after Knowledge changes, once ingest has gone quiet, at most once an hour;
+each run is billed the same way.
+
+### Agent notes
+
+Where an owner or admin allows it, the orchestrator can submit notes into
+Knowledge (`brain_add_note`). `knowledge_agent_notes` shows the setting:
+`mode` (`off`, `admins`: only in owners' and admins' conversations,
+`members`: in anyone's), the relation approval mode, and
+`hold_until_review`. `knowledge_agent_notes_set(mode, hold_until_review)`
+changes it for the whole organization, so ask first.
+
+- `hold_until_review=true` keeps relations from later agent notes (and from
+  API-key uploads) out of the graph until a person reviews them. It works
+  only when relation approval is `by_reason` (`hold_available`); otherwise 409
+  `relation_approval_off` or `relation_approval_holds_all`.
+- Until a person resolves a note's review item at
+  `https://junis.ai/team/knowledge`, results and citations from it carry
+  `origin: "agent_note_unreviewed"`.
 
 ### Limits and cost
 

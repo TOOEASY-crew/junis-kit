@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal assistant — Junis app-user reference</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1c1c1a; --muted:#6b6b66; --line:#deded8; --card:#fff; --accent:#2f5d50; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ecece8; --muted:#9a9a93; --line:#33332f; --card:#1f1f1d; --accent:#7fbfa9; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:760px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  h1 { font-size:18px; margin:4px 0; } h2 { font-size:14px; margin:0 0 8px; color:var(--muted); font-weight:600; }
+  #log { min-height:200px; max-height:46vh; overflow:auto; display:grid; gap:8px; align-content:start; }
+  .msg { padding:8px 10px; border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .user { background:var(--accent); color:var(--bg); justify-self:end; max-width:85%; }
+  .bot { border:1px solid var(--line); max-width:95%; }
+  .note { color:var(--muted); font-size:13px; }
+  form { display:flex; gap:8px; margin-top:10px; }
+  input, select, button { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
+  input[type=text] { flex:1; min-width:0; }
+  button { cursor:pointer; } button.primary { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+  ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+  li { border-top:1px solid var(--line); padding-top:8px; } li:first-child { border-top:0; padding-top:0; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .badge { font-size:12px; padding:1px 7px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Personal assistant <span id="who" class="note"></span></h1>
+
+  <section>
+    <h2>Conversation</h2>
+    <div id="log" aria-live="polite"></div>
+    <div id="cards"></div>
+    <form id="chat"><input id="file" type="file" multiple aria-label="Attach photos, files or a voice memo" style="max-width:9.5em"><input id="text" type="text" autocomplete="off" placeholder="Ask, or say “check again in 10 minutes”"><button class="primary">Send</button></form>
+    <div id="state" class="note"></div>
+  </section>
+
+  <section>
+    <h2>Inbox <span id="unread" class="badge">0</span></h2>
+    <ul id="feed"></ul>
+    <div class="row" style="margin-top:8px"><button id="readAll">Mark all read</button></div>
+  </section>
+
+  <section>
+    <h2>Follow-ups and schedules</h2>
+    <ul id="schedules"></ul>
+  </section>
+
+  <section>
+    <h2>Settings</h2>
+    <div class="row">
+      <label>Hear from the assistant
+        <select id="proactive"><option value="all">always</option><option value="important">only when urgent</option><option value="off">never</option></select>
+      </label>
+      <label>Quiet from <input id="qs" type="time" value="22:00"> to <input id="qe" type="time" value="08:00"></label>
+      <button id="save">Save</button>
+      <button id="connect">Connect my apps</button>
+    </div>
+    <div id="settingsNote" class="note"></div>
+  </section>
+</main>
+
+<script>
+// ---- configuration: the only three values to change ---------------------------------------------------------------
+const BASE = 'https://api.junis.ai/api/external';
+// Your endpoint that returns {"token": "...", "expires_in": 600} for the signed-in user (see README.md, "The token").
+const TOKEN_URL = '/api/junis-token';
+// A stable value per user or per page load: requests with the same value reach the same server (faster first reply).
+const ROUTE = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
+
+// ---- the token lives in memory only: never in storage, a cookie or a URL ------------------------------------------
+let token = '', tokenExpires = 0;
+async function getToken() {
+  if (token && Date.now() < tokenExpires - 60_000) return token;
+  const res = await fetch(TOKEN_URL, { method: 'POST', credentials: 'include' });
+  if (!res.ok) throw new Error('Could not get a token (' + res.status + ')');
+  const body = await res.json();
+  token = body.token; tokenExpires = Date.now() + (body.expires_in || 600) * 1000;
+  return token;
+}
+async function api(method, path, body, signal) {
+  const t = await getToken();
+  const res = await fetch(BASE + path, {
+    method, ...(signal ? { signal } : {}),
+    headers: { Authorization: 'Bearer ' + t, 'X-Junis-Route': ROUTE, ...(body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}) },
+    body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,   // FormData = a file upload: the browser sets the multipart header
+  });
+  if (!res.ok) { const err = new Error(method + ' ' + path + ' → ' + res.status); err.status = res.status; err.retryAfter = Number(res.headers.get('Retry-After')) || 0; throw err; }
+  return res;
+}
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
+
+// ---- chat: one conversation, streamed -----------------------------------------------------------------------------
+// `conv` is the conversation the page is in. Each message remembers the conversation it was typed in, so a message
+// that is still waiting is not carried along when the page moves to another conversation (an approval from the inbox).
+let conv = { id: null }, busy = false, retryTimer = 0; const queued = [];
+const STALL_MS = 90000;                    // the server sends a keepalive every 15 s; a stream silent for this long is dropped
+function addMsg(cls, text) { const n = el('div', 'msg ' + cls, text); $('log').append(n); $('log').scrollTop = $('log').scrollHeight; return n; }
+
+// Photos, files and voice memos: upload first, then name the returned addresses in the chat request.
+// With an app-user token the chat accepts only addresses that /me/files returned.
+function takePicked() { const picked = [...$('file').files].slice(0, 5); $('file').value = ''; return picked; }
+async function upload(picked) {
+  if (!picked.length) return [];
+  const form = new FormData(); picked.forEach((f) => form.append('files', f));
+  const body = await (await api('POST', '/me/files', form)).json();
+  const failed = body.files.filter((f) => f.error).map((f) => f.fileName);
+  if (failed.length) $('state').textContent = 'Could not attach: ' + failed.join(', ');
+  return body.files.filter((f) => f.publicUrl).map((f) => f.publicUrl);
+}
+
+// One request at a time. Everything goes through the queue: messages leave in the order they were typed, each with
+// the files picked for it, and an answer to a card keeps its decision while it waits and goes before waiting messages.
+function send(text, decisions, cards) {
+  const entry = { text, decisions, cards, conv, picked: decisions ? [] : takePicked() };
+  decisions ? queued.unshift(entry) : queued.push(entry);
+  if (busy) $('state').textContent = 'Queued: sends when the current reply ends.';
+  flush();
+}
+function flush() { if (!busy && !retryTimer && queued.length) run(queued.shift()); }
+async function run(entry) {
+  const { text, decisions } = entry;
+  busy = true; $('state').textContent = '';
+  if (!decisions && !entry.drawn) addMsg('user', text);
+  entry.drawn = true;
+  const out = addMsg('bot', '');
+  const ctl = new AbortController(); let stall = 0;
+  const alive = () => { clearTimeout(stall); stall = setTimeout(() => ctl.abort(), STALL_MS); };
+  try {
+    if (!entry.files) entry.files = await upload(entry.picked);          // once: a retry sends the same addresses
+    alive();
+    const res = await api('POST', '/v1/chat/completions', {
+      model: 'junis-orchestrator', stream: true, ...(entry.conv.id ? { session_id: entry.conv.id } : {}),
+      messages: [{ role: 'user', content: text }], ...(decisions ? { tool_confirmations: decisions } : {}),
+      ...(entry.files.length ? { files: entry.files } : {}),
+    }, ctl.signal);
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      alive();
+      buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 2);
+        if (!line.startsWith('data:')) continue;                       // comments are keepalives
+        const data = line.slice(5).trim(); if (data === '[DONE]') continue;
+        let ev; try { ev = JSON.parse(data); } catch { continue; }
+        if (ev.session_id && !entry.conv.id) entry.conv.id = ev.session_id;   // the first chunk names the conversation
+        const delta = ev.choices && ev.choices[0] && ev.choices[0].delta;
+        if (delta && delta.content) out.textContent += delta.content;
+        if (ev.event === 'tool_confirmation_required') showCards(ev.confirmations || []);
+      }
+    }
+    if (!out.textContent) out.remove();
+  } catch (e) {
+    const shown = !!out.textContent; if (!shown) out.remove();           // what already arrived stays on screen
+    if (e.status === 409) {                                             // another request is still running in this conversation: the same call, a little later
+      queued.unshift(entry);
+      $('state').textContent = 'The assistant is still working in this conversation; sending again shortly.';
+      retryTimer = setTimeout(() => { retryTimer = 0; flush(); }, (e.retryAfter || 5) * 1000);
+    } else {
+      $('state').textContent = shown ? 'The reply was cut off.' : ctl.signal.aborted ? 'The assistant stopped answering. Try again.' : String(e.message || e);
+      if (decisions && entry.cards) showCards(entry.cards);              // the request is still open on the server: ask again
+      else if (queued.length && !decisions && !shown) addMsg('note', 'Not sent: ' + text);   // the next message clears the status line, so the failure stays in the log
+    }
+  } finally { clearTimeout(stall); busy = false; flush(); refreshSchedules(); }
+}
+$('chat').addEventListener('submit', (e) => { e.preventDefault(); const t = $('text').value.trim(); if (!t) return; $('text').value = ''; send(t); });
+
+// ---- approvals and questions: a card per request, answered with the next call ------------------------------------
+function showCards(items) {
+  const box = $('cards'); box.replaceChildren();
+  const decisions = [];
+  for (const c of items) {
+    const card = el('section'); card.style.marginTop = '8px';
+    card.append(el('div', '', c.kind === 'clarification' ? (c.question || 'The assistant has a question') : 'Allow “' + (c.tool_name || 'this action') + '”?'));
+    if (c.args_preview) card.append(el('div', 'note', typeof c.args_preview === 'string' ? c.args_preview : JSON.stringify(c.args_preview)));
+    const row = el('div', 'row'); row.style.marginTop = '6px';
+    const choose = (approved, answer) => { decisions.push({ confirmation_id: c.confirmation_id, approved, ...(answer ? { answer } : {}) }); card.remove(); if (decisions.length === items.length) send(approved ? 'ok' : 'no', decisions, items); };
+    if (c.kind === 'clarification' && Array.isArray(c.options) && c.options.length) {
+      for (const o of c.options) { const b = el('button', '', String(o)); b.onclick = () => choose(true, String(o)); row.append(b); }
+      const skip = el('button', '', 'Skip'); skip.onclick = () => choose(false); row.append(skip);
+    } else {
+      const yes = el('button', 'primary', 'Allow'); yes.onclick = () => choose(true); const no = el('button', '', 'Don’t allow'); no.onclick = () => choose(false); row.append(yes, no);
+    }
+    card.append(row); box.append(card);
+  }
+}
+
+// ---- inbox: first page, then a live stream that every device of this user shares --------------------------------
+let cursor = null;
+function drawItem(item, top) {
+  const li = el('li'); li.dataset.id = item.id;
+  const head = el('div', 'row'); head.append(el('strong', '', item.title || (item.kind === 'run' ? 'Scheduled run finished' : 'Message')), el('span', 'badge', item.kind));
+  li.append(head); if (item.body) li.append(el('div', '', item.body));          // textContent only: feed text is model output
+  li.append(el('div', 'note', new Date(item.created_at || Date.now()).toLocaleString()));
+  if (item.kind === 'approval' && item.data && item.data.confirmation_id && !item.read_at) li.append(approvalRow(item, li));
+  if (item.kind === 'connection' && item.data && item.data.type === 'browser_sign_in' && /^https?:\/\//i.test(String(item.data.url || '')) && !item.read_at) li.append(signInRow(item));
+  if (item.kind === 'room' && item.data && item.data.type === 'room_draft' && item.data.room_id && item.body && !item.read_at) li.append(roomDraftRow(item));
+  top ? $('feed').prepend(li) : $('feed').append(li);
+}
+// A scheduled run could not do something without the user's OK. Approving runs nothing by itself:
+// the message sent right after lets the assistant make the same call, once, without a card.
+function approvalRow(item, li) {
+  const row = el('div', 'row'); row.style.marginTop = '6px';
+  if (item.data.args_preview) li.append(el('div', 'note', String(item.data.args_preview)));
+  const answer = async (approved) => {
+    row.replaceChildren(el('span', 'note', approved ? 'Approved' : 'Not approved'));
+    try {
+      const res = await (await api('POST', '/me/approvals/' + encodeURIComponent(item.data.confirmation_id), { approved })).json();
+      await api('POST', '/me/feed/read', { ids: [item.id] });
+      if (res.status === 'granted') {                                    // continue in the conversation that asked; messages already waiting stay in theirs
+        const id = res.session_id || item.session_id; if (id && id !== conv.id) conv = { id };
+        send('Go ahead with what I just approved.');
+      }
+      else if (approved) row.replaceChildren(el('span', 'note', 'This request is no longer open.'));
+    } catch (e) { row.replaceChildren(el('span', 'note', String(e.message || e))); }
+  };
+  const yes = el('button', 'primary', 'Approve'); yes.onclick = () => answer(true);
+  const no = el('button', '', 'Not now'); no.onclick = () => answer(false);
+  row.append(yes, no); return row;
+}
+// The assistant prepared a message for one of this person's rooms (tool suggest_room_message). Nothing has been sent: the
+// text shown above the button is exactly what goes to the room, under this person's name, and only when they press Send.
+// The room's own assistant never sees this person's memory or connected apps; this is how their side gets there.
+function roomDraftRow(item) {
+  const row = el('div', 'row'); row.style.marginTop = '6px';
+  const sendIt = el('button', 'primary', 'Send to ' + String(item.data.room_name || 'the room'));   // textContent: a room's name was typed by a person
+  const drop = el('button', '', 'Discard'); const note = el('span', 'note', '');
+  let going = false;
+  const handled = async (text) => {
+    row.replaceChildren(el('span', 'note', text));
+    try { await api('POST', '/me/feed/read', { ids: [item.id] }); } catch { /* the card stays unread; the message is not sent twice (the buttons are gone) */ }
+  };
+  sendIt.onclick = async () => {
+    if (going) return; going = true; sendIt.disabled = drop.disabled = true; note.textContent = '';
+    try {
+      await api('POST', '/rooms/' + encodeURIComponent(item.data.room_id) + '/messages', { text: item.body, addressed: item.data.addressed === true });
+      await handled('Sent.');
+    } catch (e) { going = false; sendIt.disabled = drop.disabled = false; note.textContent = String(e.message || e); }
+  };
+  drop.onclick = () => { if (!going) { going = true; handled('Not sent.'); } };
+  // Who receives it: the other members' names as the server read them. A room's name is whatever its maker typed ("Mom").
+  const others = Array.isArray(item.data.others) ? item.data.others.map(String).filter(Boolean) : [];
+  const more = Number(item.data.member_count) - 1 - others.length;
+  if (others.length) row.append(el('span', 'note', 'To ' + others.join(', ') + (more > 0 ? ' +' + more : '')));
+  row.append(sendIt, drop, note); return row;
+}
+// The assistant asked the user to sign in to a site (tool request_browser_sign_in). The user does it themselves on a live
+// view of the browser in their own workspace: no password goes through the conversation. The view opens in a new tab;
+// its address is the key to that view, so it is opened and never shown, logged or stored.
+function signInRow(item) {
+  const row = el('div', 'row'); row.style.marginTop = '6px';
+  const button = el('button', 'primary', 'Sign in');
+  const note = el('span', 'note', '');
+  button.onclick = async () => {
+    button.disabled = true; note.textContent = '';
+    const tab = window.open('about:blank', '_blank');                 // inside the click, so the browser allows the new tab
+    try {
+      const view = await (await api('POST', '/me/browser-sign-in', { url: item.data.url })).json();
+      if (tab) { tab.opener = null; tab.location = view.view_url; } else location.assign(view.view_url);
+      // The view ends when the person presses Done there, when its time runs out, or when they say so here. Closing it
+      // matters: until it is closed the assistant's code tools in that workspace answer "try again in a moment".
+      let saidDone = false;
+      const doneHere = el('button', '', 'I signed in'); doneHere.onclick = () => { saidDone = true; doneHere.disabled = true; };
+      row.replaceChildren(el('span', 'note', 'Sign in on the page that opened, then press Done there.'), doneHere);
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 4000));
+        if (saidDone) { await api('DELETE', '/me/browser-sign-in'); break; }
+        const st = await (await api('GET', '/me/browser-sign-in')).json();   // this call also stops billing once the view has ended
+        if (!st.active) break;
+      }
+      await api('POST', '/me/feed/read', { ids: [item.id] });
+      row.replaceChildren(el('span', 'note', 'Signed in.'));
+      if (item.session_id && item.session_id !== conv.id) conv = { id: item.session_id };   // tell the assistant in the conversation that asked
+      send('I signed in. Go ahead.');
+    } catch (e) {
+      if (tab && !tab.closed) tab.close();
+      button.disabled = false; note.textContent = String(e.message || e);
+    }
+  };
+  // Which site: taken from the address itself (the browser's own form of the host, so look-alike letters show as "xn--…"),
+  // not from the assistant's wording. The person checks it here, and again in the bar of the view.
+  let site = ''; try { site = new URL(item.data.url).hostname; } catch { site = ''; }
+  row.append(button, el('strong', '', site), note); return row;
+}
+async function loadFeed() {
+  const page = await (await api('GET', '/me/feed?limit=20')).json();
+  $('feed').replaceChildren(); page.items.forEach((it) => drawItem(it, false));
+  cursor = page.cursor || null; $('unread').textContent = page.unread || 0;
+}
+async function followFeed() {
+  for (;;) {
+    try {
+      const t = await getToken();
+      const res = await fetch(BASE + '/me/events' + (cursor ? '?after=' + encodeURIComponent(cursor) : ''), { headers: { Authorization: 'Bearer ' + t, 'X-Junis-Route': ROUTE } });
+      if (!res.ok) throw new Error(String(res.status));
+      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, i); buf = buf.slice(i + 2);
+          const f = {}; for (const l of block.split('\n')) { const k = l.indexOf(':'); if (k > 0) f[l.slice(0, k)] = l.slice(k + 1).trim(); }
+          if (f.event === 'item' && f.data) { const item = JSON.parse(f.data); cursor = f.id || item.cursor; drawItem(item, true); $('unread').textContent = Number($('unread').textContent) + 1; }
+        }
+      }
+    } catch { await new Promise((r) => setTimeout(r, 5000)); }
+  }
+}
+$('readAll').onclick = async () => { const r = await (await api('POST', '/me/feed/read', {})).json(); $('unread').textContent = r.unread || 0; };
+
+// ---- follow-ups the assistant promised, and the user's own schedules ---------------------------------------------
+async function refreshSchedules() {
+  try {
+    const body = await (await api('GET', '/me/schedules')).json();
+    $('schedules').replaceChildren();
+    for (const s of body.schedules || body.items || []) {
+      const li = el('li'); const row = el('div', 'row');
+      row.append(el('span', '', s.name), el('span', 'badge', s.schedule_type), el('span', 'note', s.next_run_at ? 'next ' + new Date(s.next_run_at).toLocaleString() : ''));
+      const del = el('button', '', 'Cancel'); del.onclick = async () => { await api('DELETE', '/me/schedules/' + encodeURIComponent(s.id)); refreshSchedules(); };
+      row.append(del); li.append(row); $('schedules').append(li);
+    }
+    if (!$('schedules').children.length) $('schedules').append(el('li', 'note', 'Nothing scheduled.'));
+  } catch { /* the list is optional */ }
+}
+
+// ---- settings: time zone from the device on first launch; quiet hours; how much to hear -------------------------
+async function loadSettings() {
+  const me = await (await api('GET', '/me')).json();
+  $('who').textContent = me.name ? '· ' + me.name : '';
+  const s = me.settings || {};
+  if (!s.timezone) await api('PATCH', '/me/settings', { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  if (s.proactive) $('proactive').value = s.proactive;
+  if (s.quiet_hours) { $('qs').value = s.quiet_hours.start; $('qe').value = s.quiet_hours.end; }
+}
+$('save').onclick = async () => {
+  await api('PATCH', '/me/settings', { proactive: $('proactive').value, quiet_hours: { start: $('qs').value, end: $('qe').value } });
+  $('settingsNote').textContent = 'Saved.';
+};
+$('connect').onclick = async () => {
+  try {
+    const st = await (await api('GET', '/me/connections')).json();
+    if (!(st.items || []).length) { $('settingsNote').textContent = 'This assistant has nothing to connect.'; return; }   // an empty list: asking for a link answers 400
+    if (st.all_connected) { $('settingsNote').textContent = 'Everything this assistant needs is connected.'; return; }
+    const link = await (await api('POST', '/me/connect-sessions', { return_url: location.origin + location.pathname })).json();
+    location.assign(link.url);                                           // a password for that page: never log or store it
+  } catch (e) { $('settingsNote').textContent = String(e.message || e); }
+};
+
+loadSettings().then(loadFeed).then(() => { refreshSchedules(); followFeed(); }).catch((e) => { $('state').textContent = String(e.message || e); });
+</script>
+</body>
+</html>

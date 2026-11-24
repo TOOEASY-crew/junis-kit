@@ -46,26 +46,53 @@ for field names is the tool schema: `junis_describe_tool create_agent` or
 | `web_search_enabled` | false | See below. |
 | `vision_enabled` | false | See below. |
 | `output_schema` | none | See below. |
+| `transform_config` | none | LLM agents only. Makes the agent a transform step that calls no model. See "Step settings". |
+| `claude_org_billing` | false | LLM agents only. Bills the agent's Claude calls to the organization's linked Claude Console organization instead of Junis credits. See "Claude organization billing". |
 
 Fields that are stored but do nothing: `tool_prefix`,
 `aggregation_instruction`. `top_p` and `top_k` cannot be set.
 
-Built-in answer checking (`verify_enabled`, `verify_rubric`) is not a
-parameter of the `create_agent` and `update_agent` tools. Set it in an
+Built-in answer checking (`verify_enabled`, `verify_rubric`): after each
+answer a separate scorer grades it on the rubric's dimensions and can have it
+rewritten (extra model calls, billed). `create_agent` and `update_agent` take
+both when their schema lists them; otherwise set them in an
 `apply_team_changes` action ([build-and-verify.md](build-and-verify.md)) or
 with `junis_api` (`PUT /management/agents/<id>` with
-`{"verify_enabled": true, "verify_rubric": {…}}`). It acts only when Junis has
-turned the verifier on for the organization (Junis enables this for an
-organization on request). For
+`{"verify_enabled": true, "verify_rubric": {…}}`). Add `"evidence": true`, or
+`{"dimensions": ["completeness"], "required_tools": ["send_report"], "max_chars": 1500}`,
+to the rubric so the scorer also sees which tools completed or failed in that
+turn (names and errors only, never argument values or results; the number of
+scorer calls stays the same). Use it where a well-written answer can hide a
+send that failed. It acts only when Junis has turned the verifier on for the
+organization (Junis enables this for an organization on request). For
 quality control from here, build a generate-and-review loop
 ([squad-design.md](squad-design.md)).
+
+## Claude organization billing
+
+An owner or admin links the organization's own Claude Console organization once,
+in the web app (Team settings → Claude organization billing). Linking cannot be
+started from here: the approval is bound to the browser that started it. Read
+the state with `junis_api` (`GET /management/claude-billing` → `available`,
+`status`: `not_linked`, `linked` or `unlinked`, and the web address to send the
+person to for linking).
+
+After that, `claude_org_billing: true` on an LLM agent with a direct
+`anthropic/claude-*` model runs that agent's Claude calls on the customer's
+Claude organization: Junis credits are 0 and usage shows as "Claude org billing"
+with no amount. Squads, tools, MCP, schedules and streaming behave the same.
+Side calls (the web search tool, Claude Skills, code execution, summaries, the
+verifier) stay on Junis credits. Turning it on before linking returns 409, a
+model that is not direct Claude returns 422, and if the link ends later the
+agent answers with a notice instead of running on credits. Turn it on only when
+the user asks.
 
 ## Fields for containers
 
 | Type | Field | Notes |
 | --- | --- | --- |
 | Sequential | none | Children run in `order_index` order. |
-| Parallel | none that work | Children run together. |
+| Parallel | `map_config`, default none | Without it, children run together. With it, the single child runs once per item of a list. See "Step settings". |
 | Loop | `max_iterations`, default 10 | Set it explicitly: 3 for review loops, 1.2 to 1.5 times the item count for processing loops. |
 
 Containers need no model and ignore `instruction` and `output_key`. A container
@@ -97,6 +124,33 @@ request or given as URLs. The model must accept images; if it does not, the
 attachments are dropped without an error. `list_llm_models` has no image flag:
 check the model's description, or test with one image. Say in the instruction
 what to look for in the image.
+
+## Step settings
+
+Two optional settings change how an agent runs. Leave them out and nothing
+changes. Patterns and rules are in [squad-design.md](squad-design.md),
+patterns 4a and 4b.
+
+| Setting | On | Value |
+| --- | --- | --- |
+| `map_config` | `PARALLEL_AGENT` | `{"input_key": "plan_output.urls", "output_key": "summaries", "max_items": 20, "concurrency": 5}`. `max_items` 1 to 100, `concurrency` 1 to 10. Optional: `item_timeout_seconds` (30 to 3600) and `on_item_error` (`"null"`, the default, or `"entry"`: a failed item becomes an object with `_item_error`). |
+| `transform_config` | `LLM_AGENT` | `{"inputs": ["a_output"], "steps": [{"op": "unique", "by": "url"}]}`. Up to 10 inputs and 20 steps. |
+
+- Set them with `create_agent` or `update_agent`. If the tool does not list
+  the parameter (an older hosted server), set it in an `apply_team_changes`
+  action or with `junis_api` / `api PUT /management/agents/<agent id>`.
+- On update, a missing field leaves the stored value alone. To remove one,
+  list it in `clear_fields`, or send `{}` through `junis_api`.
+- A value that breaks the rules is rejected with the reason. Sent to the
+  wrong agent type, it is not stored: `create_agent` and `update_agent` say so
+  under `warnings`, `squad_plan` reports an error, and `apply_team_changes`
+  returns no warning, so read the agent back after using it.
+- `get_agent` returns both fields. `get_agent_effective_config` adds a
+  `for_each_step` or `transform_step` block that explains what will run.
+- `clone_agent`, squad files and version rollback carry both settings. A
+  clone has no sub-agents, so a cloned for-each agent needs its worker added.
+  A squad file lists the settings only on agents that use them; write `null`
+  to remove one.
 
 ## Structured output
 
@@ -149,6 +203,8 @@ is dropped with only a log entry and the caller simply does not have it.
 - The response lists `warnings`: settings that have no effect (unknown field
   names, which are ignored; a container's `instruction` or `output_key`;
   `max_llm_calls` on a sub-agent; `max_iterations` outside a loop;
+  `map_config` or `transform_config` on the wrong agent type, and the settings
+  a transform step no longer uses;
   `tool_prefix`; `aggregation_instruction`) and common traps (strict `{word}`
   placeholders, `include_contents="none"`). Read them after every create and
   update.

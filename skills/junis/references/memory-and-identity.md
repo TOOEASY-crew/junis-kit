@@ -96,6 +96,32 @@ memory API acts in the key's organization (or the `organization_id` you pass).
   Editing there may be switched off for the account; `patch_memory_content`
   always works for the profile.
 
+### What agents saved right after reading outside content
+
+An agent that read a web page, a document or another system's answer and
+then saved to memory may have saved text that came from that content rather
+than from the user. Only those writes are listed (a write with no outside
+content before it in the run is not recorded here):
+`list_memory_provenance(days)` (`GET /management/memory/provenance`), with
+`written` and `replaced` text, the agent, the session, which kind of content
+came before (`external_classes`: `web`, `documents`, `external`) and from
+which tools, and `undo_available`.
+
+1. After a run that read outside content, or when the user asks what was
+   saved about them, list the items and show each `written` text.
+2. For each one the user confirms, `resolve_memory_provenance(item_id, "keep")`:
+   the memory stays and the item leaves the list.
+3. For each one the user rejects, `resolve_memory_provenance(item_id, "undo")`,
+   only when `undo_available` is true. Undo changes nothing and answers 409
+   when it cannot be done safely: `not_undoable` (a full rewrite),
+   `changed` (the text was edited since: fix it with `patch_memory_content`),
+   `already_handled`.
+
+Nothing is blocked while saving; the list is how the user checks. The same
+`user_id` rule as the other memory tools applies. Without these tools (an
+older hosted server): `POST /management/memory/provenance/<id>/keep` or
+`/undo` through `junis_api`.
+
 Every run is logged to the acting user's daily memory, including test runs and
 runs sent through the API. Anonymous turns on the public website widget are
 the exception: they never read or write the owner's memory. For squads called
@@ -155,6 +181,15 @@ web page.
   `expected_version`: a stale one is refused with 409 `wiki_version_conflict`
   instead of overwriting.
 - Agents cannot delete pages. Delete through the API above or in the web app.
+- Search (`wiki_search`, `GET /management/wiki/search`) puts pages whose key
+  matches first, then annotation matches, then pages with the words in a
+  heading.
+- A page that says how a recurring job is done (a playbook): key
+  `playbooks/<topic>`, one topic per page, an annotation that starts with the
+  one agent or person who writes it, and rules quoted word for word with a
+  `[[key]]` link to their source. Agents read it only when they call
+  `wiki_search` or `wiki_read`, so name the page in the instruction that
+  needs it.
 - Every write is recorded in the organization's audit log.
 
 Use the wiki for things agents should look up when needed: procedures, price
@@ -170,3 +205,4 @@ should colour every answer, and memory for what concerns one person.
 | "Remember that I am the marketing lead" | Patch the user's `user.md`. |
 | "Keep a log of what the weekly job found" | Give the job's last agent `wiki_append` and `wiki_create`, name the page in its instruction, and say to create it when the append reports it missing. |
 | "What does it know about me?" | Read the memory directory and summarize; point to `https://junis.ai/memory`. |
+| "Did it save something from that page?", "take that back" | `list_memory_provenance`, show the items, then keep or undo each one the user names ("What agents saved right after reading outside content"). |

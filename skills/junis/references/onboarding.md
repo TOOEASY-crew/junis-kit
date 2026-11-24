@@ -25,9 +25,10 @@ this works in remote shells and containers too.
 2. Start the request: tool `junis_connect` with `method: "browser"`, or command
    `login --browser`. The result has a link (`verification_uri`); give it to
    the user. In a terminal the command also opens it.
-3. The user opens the link, signs in, checks the 29 permissions asked for
-   (every permission this skill uses: the web "Coding agents" preset minus two
-   unused admin scopes), presses Approve and comes back. A platform that does
+3. The user opens the link, signs in, checks the 31 permissions asked for
+   (every permission this skill's tools use; the web "Coding agents" preset
+   also holds two admin scopes and the two Junis Space scopes, which are not
+   asked for), presses Approve and comes back. A platform that does
    not offer one of them yet is asked again for the ones it has, so the page
    then shows fewer.
 4. Finish: call `junis_connect` with `method: "browser"` again. After it
@@ -96,7 +97,7 @@ revoke it on the API keys page and create a new one.
 A key from browser login or the "Coding agents (recommended)" preset holds
 every permission below that the platform offered when it was made. A key made
 with the default permissions covers building, running, schedules, skills, MCP,
-Composio and RAG, and needs these added for five more areas:
+Composio and RAG, and needs these added for six more areas:
 
 | Area | Permission to add |
 | --- | --- |
@@ -104,6 +105,7 @@ Composio and RAG, and needs these added for five more areas:
 | The user's own credential vault | `secrets:manage` |
 | Deleting RAG documents (`delete_datastore_file`, `DELETE /rag/...`) | `rag:delete` |
 | The organization wiki through the API | `wiki:read`, `wiki:manage` |
+| The squad board through the API ([agent-tools.md](agent-tools.md), "Squad board") | `board:read`, `board:manage`. Never part of any default; a key made before the board existed lacks them too. Both need an owner's or admin's key. The agents' own `board_*` tools need no key permission. |
 | Actions ([actions.md](actions.md)) | `actions:read`, `actions:manage` for connections, drafts and assignment, `actions:run` to run. Never part of any default; a key made before Actions existed lacks them too. Reading and managing need an owner's or admin's key; a member's key runs only the actions whose definition lists `MEMBER` in a roles rule |
 
 To add a permission, the user presses "Add permissions" next to the key on the

@@ -63,9 +63,9 @@ handshake of older clients, with `-32022` for an unsupported version.
    preferred route: the browser.
 2. Browser approval (`junis_connect` with `method: "browser"`, command
    `login --browser`) uses the platform's key request flow. The kit posts a
-   request with a SHA-256 challenge of a one-time verifier and 29 scopes, every
-   permission the skill uses (the web app's "Coding agents" preset minus two
-   unused admin scopes). A platform that does not know one of them refuses
+   request with a SHA-256 challenge of a one-time verifier and 31 scopes, every
+   permission the skill's tools use (the web app's "Coding agents" preset
+   without its two admin scopes and the two opt-in Junis Space scopes). A platform that does not know one of them refuses
    the list with 400 `invalid_scopes`; the kit then asks once for the
    intersection with the `available_scopes` the refusal names (the 26 core
    scopes when it names none), and for the platform's defaults only if that
@@ -197,7 +197,7 @@ release commit is then tagged.
 | --- | --- | --- |
 | Unit and integration | `node --test` against an in-process mock of the External API and the hosted MCP server, serving the real production tool catalogue | CLI, bridge, runs (including dropped connections), installer on sandbox homes, snapshot, doctor |
 | Structure | `tests/skill.test.mjs` | Frontmatter rules, reference links, every tool name in the text exists, no secrets, manifests in sync, hook behaviour |
-| Behaviour (Claude Code only) | `claude plugin eval` with MCP mocks and a no-plugin baseline arm, twenty-five cases in `evals/`; a run writes its results to `evals/results/` | The skill fires on natural Korean requests and changes what the agent does: connects before building, builds from the live inventory, follows long runs, keeps secrets out, diagnoses by reading the run, links OAuth apps and MCP servers and devices the safe way, builds RAG agents within the platform's rules, tunes settings by reading first and verifying by running, edits identity by patch, starts runs from GitHub events once per event, keeps a regression set around instruction changes, stays quiet on unrelated requests |
+| Behaviour (Claude Code only) | `claude plugin eval` with MCP mocks and a no-plugin baseline arm, twenty-eight cases in `evals/`; a run writes its results to `evals/results/` | The skill fires on natural Korean requests and changes what the agent does: connects before building, builds from the live inventory, follows long runs, keeps secrets out, diagnoses by reading the run, links OAuth apps and MCP servers and devices the safe way, builds RAG agents within the platform's rules, tunes settings by reading first and verifying by running, edits identity by patch, starts runs from GitHub events once per event, keeps a regression set around instruction changes, improves a squad from its change ledger with a note on the change, asks with the estimate and a before-and-after check before switching on a billed Knowledge index, stays quiet on unrelated requests |
 | Other agents | Install tests on sandbox homes (Codex, Cursor, Gemini CLI, Copilot CLI, OpenCode written and checked; VS Code planned in a dry run) and MCP handshake tests with a scripted stdio client | The installer writes each agent's format without a credential, and the bridge answers both protocol eras. Not that each agent loads and follows the skill |
 | Extensibility | `tests/extensibility.test.mjs` | A tool the platform adds after the kit was written is listed, found, described and called through the full bridge, the lazy bridge and the command line without any change to the kit |
 

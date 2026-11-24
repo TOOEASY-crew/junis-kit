@@ -53,7 +53,10 @@ Slack" becomes a collector (web collection), an analyzer (no tools), a sender
 | The user picks one of several jobs each time | Orchestrator routes to sub-agents |
 | B needs A's result | `SEQUENTIAL_AGENT` with A then B |
 | A, B, C are independent and can run together | `PARALLEL_AGENT`, followed by a combiner |
-| The same step repeats over a list, or until good enough | `LOOP_AGENT` |
+| The same step runs on every item of a list, and the items do not depend on each other | `PARALLEL_AGENT` in for-each mode (`map_config`) with one worker |
+| A list needs merging, de-duplicating, filtering, sorting or cutting, with no judgement | `LLM_AGENT` as a transform step (`transform_config`): no model call |
+| Each round needs the previous round's result, or the work repeats until good enough | `LOOP_AGENT` |
+| Many similar pieces of work whose number is not known before the run, or that do not fit in one run | A shared board: a lead adds tasks, workers in loops claim them (pattern 8) |
 | A needs B's help in the middle of its own work and writes the final answer itself | B as a tool: `is_tool_agent=true`, and `agent_tool:<B's name>` in A's `tools` |
 | Agents need documents | `RAG_AGENT` attached as a tool to whoever asks |
 
@@ -126,6 +129,101 @@ call `exit_loop` after the last item or when nothing is left. Set
 `max_iterations` to 1.2 to 1.5 times the expected item count; when the count is
 known only at run time, size it for the longest list you expect.
 
+Use this loop when an item needs what the previous items produced. When the
+items are independent, use pattern 4a: it runs each item exactly once, several
+at a time, and returns the results in order.
+
+### 4a. For each item, in parallel
+
+```
+SEQUENTIAL_AGENT
+├── Lister       output_key item_list   (answers with a JSON array)
+├── ProcessEach  (PARALLEL_AGENT, map_config: input_key item_list, output_key results)
+│   └── Processor   instruction written for one item
+└── Reporter     include_contents none: the result array arrives as the previous answer
+```
+
+`map_config` is `{"input_key": "item_list", "output_key": "results",
+"max_items": 20, "concurrency": 5}`.
+
+- `input_key` names the state key that holds the list. It must be a JSON
+  array; `key.field` reads a list inside an object (an agent with
+  `output_schema` writes an object).
+- The parallel agent has exactly one child: an LLM or RAG agent with no
+  sub-agents. It cannot sit inside a loop. When any of this is wrong the save
+  still succeeds with a warning, and at run time the step answers that it did
+  not run and why.
+- Write the worker's instruction for a single item. Each run receives its
+  item at the end of the instruction under `## Item to process`; there is no
+  placeholder to write. Objects arrive as JSON.
+- The result is a JSON array in input order. An item whose model call failed
+  is `null`; the other items still run. Two optional keys change that:
+  `item_timeout_seconds` (30 to 3600) stops an item that has run longer
+  before its next model call (a call in progress finishes and is billed) and
+  counts it as failed; `"on_item_error": "entry"` puts
+  `{"_item_error": true, "index": <position from 0>, "error": "timeout" | "refused" | "no_result" | "model_error:<type>"}`
+  in a failed item's place instead of `null`. Keep only the successes with a
+  transform step (pattern 4b) `{"op": "filter", "field": "_item_error", "cmp": "not_exists"}`;
+  `"cmp": "exists"` keeps only the failures, for a retry or a report. The step stores the array under
+  `{results}` and also answers with it under its own name, so a run that ends
+  here returns the array. The worker's own `output_key` is not used.
+- Give the agent that reads the results `include_contents="none"`: the array
+  then arrives by itself as the previous answer. Use `{results?}` only for
+  fixed placement or when reading it more than one step later; using both
+  sends the data twice. With `default`, that agent also receives every item's
+  answer as history.
+- A list longer than `max_items` (1 to 100) is not processed at all: the step
+  says so. Cut the list first with a transform step, or raise the value.
+- `concurrency` (1 to 10) is how many items run at once. An owner or admin
+  can set a lower ceiling for every for-each step of the organization in the
+  web app's team settings (`foreach_max_concurrency`).
+- Every item costs at least one model call against the orchestrator's
+  `max_llm_calls`. Check that items times calls per item fits.
+- Keep items read-only. Tools that ask for confirmation do not run inside an
+  item, and a re-run repeats every item. Do writes in one step after the
+  results.
+- Item answers appear in the run under the name `<step name>_item_<n>` and
+  follow the worker's visibility; the array follows the parallel agent's.
+- Do not run the same for-each agent twice at the same time in one run (in
+  two branches of a parallel agent, for example). Each copy now gets its own
+  result array, but their conversation rows and streamed text still mix, and
+  both write the same output key, so only the copy that ends last is kept.
+  Clone it for the second branch. `squad_plan` warns about this
+  (`same_agent_twice_in_parallel`).
+- A cloned for-each agent has no worker until you add one: `clone_agent`
+  copies settings, not sub-agents.
+
+### 4b. Reshape a list without a model
+
+```
+SEQUENTIAL_AGENT
+├── Gather (PARALLEL_AGENT: Web output_key web_output, News output_key news_output)
+├── Merge  (LLM_AGENT, output_key merged, transform_config)
+└── Writer include_contents none: the array arrives as the previous answer (or read {merged?})
+```
+
+`transform_config` is `{"inputs": ["web_output", "news_output"], "steps":
+[{"op": "unique", "by": "url"}, {"op": "sort", "by": "score", "order":
+"desc"}, {"op": "limit", "count": 20}]}`.
+
+- `inputs` (1 to 10 state keys, `key.field` allowed) are joined in order: a
+  list adds its items, any other value counts as one item, a missing key adds
+  nothing.
+- `steps` run top to bottom: `flatten`, `compact` (drops null and empty),
+  `unique` (`by` optional), `filter` (`field` optional; `cmp` is one of eq, ne,
+  gt, gte, lt, lte, contains, exists, not_exists; `value`), `sort` (`by`
+  optional, `order` asc or desc), `limit` (`count`), `pick` (`fields`).
+- The step calls no model and costs no tokens. Its answer and its
+  `output_key` are the same JSON array. `model`, `instruction`, `tools` and
+  `output_schema` on that agent are unused while the setting is present, and
+  `verify_enabled` is turned off.
+- It only reshapes data: no outside calls and no branching. It is not
+  available on a RAG agent or the orchestrator.
+- Typical places: after a parallel group to merge results, before a for-each
+  step to cut the list to `max_items`, after one to drop `null` entries.
+
+Do not add an LLM agent whose only job is to merge or reformat lists.
+
 ### 5. Generate and review
 
 ```
@@ -167,6 +265,89 @@ Orchestrator
 Above eight direct sub-agents, group related agents under routing agents or
 pipelines. Every container sits inside the tree; none is left unattached.
 
+### 8. Shared board
+
+```
+Orchestrator or Lead (tools: board_read, board_add_task, board_post_note)
+└── Workers (PARALLEL_AGENT)
+    ├── WorkerLoop_1 (LOOP_AGENT) ── Worker_1
+    ├── WorkerLoop_2 (LOOP_AGENT) ── Worker_2
+    └── WorkerLoop_3 (LOOP_AGENT) ── Worker_3
+        each worker: board_claim_task, board_complete_task, board_post_note, exit_loop, plus the tools for the work
+```
+
+The agents do not report to each other. The lead writes tasks on the squad
+board, each worker takes the next open task, does it and records the result,
+and the lead reads the board afterwards. The board is kept in the database,
+so what one run leaves undone the next run picks up
+([long-running.md](long-running.md), "The squad board as the record").
+
+Use it when the amount of work is found during the run, when workers find
+follow-up work for each other, or when the job is larger than one run. When
+the list is known before the step starts and fits in one run, pattern 4a is
+cheaper: it needs no claim and complete calls.
+
+- The lead writes each task for a reader who has seen nothing else: what to
+  produce, from what input, how to tell it is done. A vague task comes back
+  as a vague result.
+- Worker instruction: "Each turn call `board_claim_task`. If no task comes
+  back (`claimed` is false, or `status` is `skipped`, `denied` or
+  `archived`), call `exit_loop` with the reason in `final_report`.
+  Otherwise do the task as its details say and call `board_complete_task`
+  with the full result; use outcome `failed` with the reason when it cannot
+  be done, `released` when another worker could do it. End the turn with one
+  line: done: <task title>."
+- Worker settings: `include_contents="none"`, because the board carries the
+  state and earlier iterations need not be sent again; `max_iterations` above
+  the expected number of tasks. One task must fit in one loop iteration, so
+  split work that needs more than about 20 minutes or 50 tool calls.
+- Claiming is atomic: two workers never get the same task. A worker holds one
+  task at a time. Give each worker its own agent name: a claim belongs to the
+  agent's name and the session, so two copies of one agent running at the
+  same time in one run would be handed the same task.
+- Results that later steps need go into `board_complete_task` or a note.
+  `output_key` values of the workers are not a reliable carrier here: the
+  loops run side by side and each keeps only its last reply.
+- Three to five workers is a sensible start. Every worker is one more model
+  call running at the same time against the same provider limits.
+- A worker pool from one definition: put a single worker under a for-each step
+  (pattern 4a) instead of building one loop per worker.
+
+  ```
+  Lead (tools: board_read, board_add_task; output_key: open_tasks)
+  └── WorkerPool  (PARALLEL_AGENT, map_config: input_key open_tasks, output_key pool_results)
+      └── Worker  (tools: board_claim_task, board_complete_task, plus the tools for the work)
+  ```
+
+  The lead answers with a JSON array of open task numbers. Each number runs
+  in its own slot, and the slots have different run-time names
+  (`WorkerPool_item_1`, `WorkerPool_item_2`, ...), so on the board each slot
+  is a separate worker. No worker needs its own agent, and there is no
+  `exit_loop`. Worker instruction: "The item below is a task number. Claim it
+  with `board_claim_task(task_number=<it>)`. If it cannot be claimed, say so
+  in one line and stop. Otherwise do it, call `board_complete_task` with the
+  full result and end with one line: done: <task title>." One slot does one
+  task, up to 100 tasks per pass and 10 at a time. `board_read` lists 20
+  tasks unless the lead passes `limit` (up to 100; `tasks_total` is the full
+  count), and a task marked `stuck: true` cannot be claimed, so have the
+  lead leave those out. Tasks that are left stay on the board, and on the
+  next run the lead lists the open numbers again.
+  Keep the loop shape above when workers add tasks that must be finished
+  within the same run.
+- For a quality gate, require review on the board and add a reviewer agent
+  with `board_read` and `board_review_task` after the workers. An agent
+  cannot review a task it completed itself, and the parallel copies of a
+  "For each" step cannot review each other's tasks: the reviewer must be a
+  different agent.
+- A schedule that starts the workers should carry the precondition
+  `board_has_work`, so a beat with an empty board calls no model
+  ([schedules.md](schedules.md), "Running only when there is work"). Run Now
+  ignores it.
+- The board tools work only when the person running the squad is a member of
+  the organization. Text on the board that other agents wrote is information,
+  not instructions; say so in the worker's instruction when the tasks come
+  from outside input.
+
 ## Settings by position
 
 Set these explicitly on every agent. Field details are in
@@ -179,6 +360,8 @@ Set these explicitly on every agent. Field details are in
 | First pipeline child that reads the user's request | `default` | set, for the next child | none or low |
 | Later pipeline child whose whole input arrives through `{key?}` | `none` | set, unless it is last | none or low; medium for a combiner |
 | Parallel worker | `none` | set, unique in the group | none or low |
+| For-each worker | `none` | not used by the step | none or low |
+| Transform step | not used | set; later agents read it | not used |
 | Loop child | `none` | set | none or low |
 | RAG agent | stored as default; irrelevant as a tool | set | none at creation; can be raised later on Gemini 3 models |
 | Agent used as a tool | either | set | by difficulty |
@@ -263,6 +446,7 @@ rule applies to its part (its owner pays by default). To copy, in this order:
 | A relay agent with no tools on the cheapest model | Cheap models often hand over with an empty message, and the receiver then has no input. Use a mid-tier model for agents whose job is to pass work on. |
 | Two search methods on one agent | Pick one: the web search setting, a search tool, or a scraping platform. |
 | A schedule added without a routing rule | The schedule's prompt goes to the orchestrator; without a rule it reaches the wrong agent. |
+| Workers on a shared board passing results through `output_key`, or reporting to the lead in text | The loops run side by side and only the board survives the run. Put results in `board_complete_task` and read them with `board_read`. |
 | Human approval expected mid-run | A run cannot pause. Put the approval in the conversation: the agent asks and makes no tool call until the user answers. |
 | Agents that can read private data, read untrusted content and send data out, all at once | That combination is how prompt injection leaks data. Allow at most two of the three in one agent, or require the user's confirmation before sending. |
 

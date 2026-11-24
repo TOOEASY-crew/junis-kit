@@ -297,6 +297,8 @@ describe('a narrower key can be requested through the browser', () => {
 
 describe('browser login asks for the Actions permissions and degrades to what the platform offers', () => {
   const ACTIONS = ['actions:read', 'actions:run', 'actions:manage'];
+  const BOARD = ['board:read', 'board:manage'];   // the squad board (2026-11-19)
+  const NEWER = [...ACTIONS, ...BOARD];           // everything after the core list
   // A platform of its own per case, so the order of start requests can be read exactly.
   async function platform(settings = {}) {
     const own = await startMockJunis();
@@ -305,22 +307,22 @@ describe('browser login asks for the Actions permissions and degrades to what th
   }
   const login = (own, args = []) => runCli(['login', '--browser', '--wait-seconds', '0', ...args], { env: own.env(), kitHome: tempDir() });
 
-  test('the default request is the core list plus the three Actions permissions', () => {
+  test('the default request is the core list plus the Actions and squad board permissions', () => {
     assert.equal(KEY_REQUEST_CORE_SCOPES.length, 26);
-    assert.equal(KEY_REQUEST_SCOPES.length, 29);
-    assert.deepEqual(KEY_REQUEST_SCOPES, [...KEY_REQUEST_CORE_SCOPES, ...ACTIONS]);
-    assert.equal(new Set(KEY_REQUEST_SCOPES).size, 29, 'no permission twice');
+    assert.equal(KEY_REQUEST_SCOPES.length, 31);
+    assert.deepEqual(KEY_REQUEST_SCOPES, [...KEY_REQUEST_CORE_SCOPES, ...NEWER]);
+    assert.equal(new Set(KEY_REQUEST_SCOPES).size, 31, 'no permission twice');
   });
 
-  test('a platform that knows them is asked once, for all 29', async () => {
+  test('a platform that knows them is asked once, for all 31', async () => {
     const own = await platform();
     try {
       const result = await login(own);
       assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
       assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES], 'one request, nothing retried');
       const granted = [...own.state.keyRequests.values()].at(-1).scopes;
-      for (const scope of ACTIONS) assert.ok(granted.includes(scope), scope);
-      assert.equal(granted.length, 29);
+      for (const scope of NEWER) assert.ok(granted.includes(scope), scope);
+      assert.equal(granted.length, 31);
     } finally {
       await own.close();
     }
@@ -329,7 +331,7 @@ describe('browser login asks for the Actions permissions and degrades to what th
   test('a platform that does not know them yet gets one retry with the permissions it offers: the key is what it was before', async () => {
     // Before: adding a permission to the request made an older platform refuse the whole list, and the kit fell
     // back to the platform's default set, a key without Knowledge, wiki or vault permissions.
-    const own = await platform({ unknownScopes: ACTIONS });
+    const own = await platform({ unknownScopes: NEWER });
     try {
       const result = await login(own);
       assert.equal(result.code, 0, result.stdout);
@@ -346,7 +348,7 @@ describe('browser login asks for the Actions permissions and degrades to what th
   });
 
   test('the retry follows the list the platform names, so any other permission it lacks is dropped the same way', async () => {
-    const own = await platform({ unknownScopes: [...ACTIONS, 'wiki:manage'] });
+    const own = await platform({ unknownScopes: [...NEWER, 'wiki:manage'] });
     try {
       const result = await login(own);
       assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
@@ -358,9 +360,23 @@ describe('browser login asks for the Actions permissions and degrades to what th
     }
   });
 
+  test('a platform that has Actions but not the squad board yet keeps the Actions permissions', async () => {
+    // The state between a kit update and the platform release that adds the board: only the two unknown permissions are dropped.
+    const own = await platform({ unknownScopes: BOARD });
+    try {
+      const result = await login(own);
+      assert.equal(result.json.status, 'waiting_for_approval', result.stdout);
+      const expected = [...KEY_REQUEST_CORE_SCOPES, ...ACTIONS];
+      assert.deepEqual(own.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, expected]);
+      assert.deepEqual([...own.state.keyRequests.values()][0].scopes, expected);
+    } finally {
+      await own.close();
+    }
+  });
+
   test('a refusal that names no offered permissions falls back to the core list, then to the platform defaults', async () => {
-    const quiet = await platform({ unknownScopes: ACTIONS, hideAvailableScopes: true });
-    const older = await platform({ unknownScopes: [...ACTIONS, 'wiki:manage'], hideAvailableScopes: true });
+    const quiet = await platform({ unknownScopes: NEWER, hideAvailableScopes: true });
+    const older = await platform({ unknownScopes: [...NEWER, 'wiki:manage'], hideAvailableScopes: true });
     try {
       assert.equal((await login(quiet)).json.status, 'waiting_for_approval');
       assert.deepEqual(quiet.state.keyRequestAttempts, [KEY_REQUEST_SCOPES, KEY_REQUEST_CORE_SCOPES]);
@@ -386,7 +402,7 @@ describe('browser login asks for the Actions permissions and degrades to what th
   });
 
   test('permissions asked for by name are never narrowed: an older platform refuses them and nothing is retried', async () => {
-    const own = await platform({ unknownScopes: ACTIONS });
+    const own = await platform({ unknownScopes: NEWER });
     try {
       const refused = await login(own, ['--scopes', 'agents:list,actions:read']);
       assert.equal(refused.code, 1);
@@ -400,8 +416,8 @@ describe('browser login asks for the Actions permissions and degrades to what th
 
   test('only the unknown-permission refusal yields a reduced list', () => {
     const refusal = (detail) => ({ detail });
-    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', unknown_scopes: ACTIONS, available_scopes: [...KEY_REQUEST_CORE_SCOPES, 'users:provision'] })), KEY_REQUEST_CORE_SCOPES, 'the intersection, in the kit\'s order, never a permission the kit did not ask for');
-    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', unknown_scopes: ACTIONS })), KEY_REQUEST_CORE_SCOPES);
+    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', unknown_scopes: NEWER, available_scopes: [...KEY_REQUEST_CORE_SCOPES, 'users:provision'] })), KEY_REQUEST_CORE_SCOPES, 'the intersection, in the kit\'s order, never a permission the kit did not ask for');
+    assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', unknown_scopes: NEWER })), KEY_REQUEST_CORE_SCOPES);
     assert.deepEqual(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', available_scopes: 'everything' })), KEY_REQUEST_CORE_SCOPES, 'a malformed list is ignored');
     assert.equal(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', available_scopes: KEY_REQUEST_SCOPES })), null, 'nothing narrower to ask for');
     assert.equal(reducedKeyRequestScopes(refusal({ error: 'invalid_scopes', available_scopes: ['users:provision'] })), null, 'an empty intersection is not sent');
@@ -467,5 +483,61 @@ describe('the live dashboard example is safe to copy', () => {
     assert.equal(calls.length, 2, 'the entity read and the change stream');
     assert.equal((html.match(/'X-Junis-Route': ROUTE/g) || []).length, 2, 'both calls send the hint');
     assert.doesNotMatch(html, /X-API-Key/i, 'the hint is refused together with an API key');
+  });
+});
+
+describe('the personal assistant example is safe to copy (app users, 2026-11-21)', () => {
+  const dir = path.join(REPO, 'examples', 'personal-assistant');
+  const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  const endpoint = fs.readFileSync(path.join(dir, 'token-endpoint.mjs'), 'utf8');
+
+  test('model output and feed text are written as text, never as markup', () => {
+    // The page shows what an agent wrote (chat, feed items, approval previews); markup built from it would run in a page that holds the user's token.
+    assert.doesNotMatch(html, /innerHTML|insertAdjacentHTML|document\.write\(/);
+    assert.match(html, /n\.textContent = text/);
+  });
+
+  test('the app-user token stays in memory and in the Authorization header', () => {
+    assert.doesNotMatch(html, /localStorage|sessionStorage|document\.cookie/);
+    assert.doesNotMatch(html, /[?&](access_)?token=/, 'the token never goes in a URL');
+    assert.equal((html.match(/Authorization: 'Bearer ' \+ t\b/g) || []).length, 2, 'the shared call helper and the event stream');
+    assert.doesNotMatch(html, /X-API-Key|jns_(live|user)_/i, 'no API key in a page');
+    assert.doesNotMatch(html, /new EventSource/, 'EventSource cannot send the Authorization header');
+  });
+
+  test('it uses only what an app-user token may call', () => {
+    const paths = [...html.matchAll(/api\('(?:GET|POST|PATCH|DELETE)', '([^'?]+)/g)].map((m) => m[1]);
+    assert.ok(paths.length >= 8, paths.join(' '));
+    // `/rooms/` (2026-11-23): the example sends a message the assistant prepared for a room; an app-user token may call `/rooms/*`.
+    for (const p of paths) assert.match(p, /^\/(v1\/chat\/completions|me(\/|$)|rooms\/$)/, p);
+    assert.match(html, /api\('POST', '\/rooms\/' \+ encodeURIComponent\(item\.data\.room_id\) \+ '\/messages', \{ text: item\.body, addressed: item\.data\.addressed === true \}\)/,
+      'the room gets exactly the text the person saw, and only from the Send button');
+    assert.match(html, /BASE \+ '\/me\/events'/);
+    assert.match(html, /e\.status === 409/, 'a busy conversation queues the message instead of failing');
+    assert.match(html, /tool_confirmations: decisions/);
+    assert.match(html, /api\('POST', '\/me\/files', form\)/, 'files are uploaded through the same helper (token in the header, never in a URL)');
+    assert.match(html, /'\/me\/approvals\/' \+ encodeURIComponent\(item\.data\.confirmation_id\)/);
+    assert.match(html, /if \(res\.status === 'granted'\)/, 'only an approval the server accepted is followed by a message');
+  });
+
+  test('the token endpoint never takes the user from the request and never logs secrets', () => {
+    assert.match(endpoint, /function signedInUserId\(req\) \{\n  return null;\n\}/, 'ships closed: nobody gets a token until the sign-in check is written');
+    assert.doesNotMatch(endpoint, /req\.body|searchParams|JSON\.parse\(/, 'the user id comes from the sign-in check only');
+    assert.doesNotMatch(endpoint, /console\.(log|error)\([^)]*(token|JUNIS_ORG_KEY|issued)/);
+    assert.match(endpoint, /'Cache-Control': 'no-store'/);
+  });
+
+  test('the reference names the same routes the example calls', () => {
+    const ref = fs.readFileSync(path.join(REPO, 'skills', 'junis', 'references', 'app-users.md'), 'utf8');
+    for (const needle of ['/management/users/<user_id>/app-token', '/app-token/exchange', '/me/settings', '/me/schedules', '/me/feed', '/me/events',
+      '/me/connections', '/me/connect-sessions', '/management/user-feed/webhook', 'notify_user', 'in_this_conversation=true', 'ask_before_write',
+      '/me/approvals', '/me/files', '/me/devices/pair', 'npx junis --pair', '/management/app-devices', '/management/app-rooms', '/rooms/join',
+      '/management/app-channels', '/me/channels/telegram/link', '/management/app-workspace',
+      '/management/app-spaces', '/me/apps/<slug>/open', '/management/mcp-platforms/<platform_id>/oauth', '/management/app-watches', '/me/watches/events',
+      '/management/app-push', '/me/push-tokens', '/me/activity', '/me/browser-sign-in', 'request_browser_sign_in', 'list_my_rooms', 'suggest_room_message', 'room_draft', '"sign_in_view": true', 'sign_in_sites', 'site_not_allowed']) {
+      assert.ok(ref.includes(needle), needle);
+    }
+    const skill = fs.readFileSync(path.join(REPO, 'skills', 'junis', 'SKILL.md'), 'utf8');
+    assert.match(skill, /references\/app-users\.md/);
   });
 });

@@ -34,7 +34,7 @@ language; keep identifiers, tool names and code as they are.
 | Organization | A tenant. Owns agents, tools, knowledge and schedules. A user can belong to several. |
 | Squad | The agents of one organization working together. |
 | Orchestrator | The entry agent, created with the organization. Its id is `orchestrator-<slug>`. It cannot be deleted. |
-| Agent types | `LLM_AGENT` does the thinking. `SEQUENTIAL_AGENT`, `PARALLEL_AGENT` and `LOOP_AGENT` are containers that only run their children. `RAG_AGENT` searches one document store. |
+| Agent types | `LLM_AGENT` does the thinking. `SEQUENTIAL_AGENT`, `PARALLEL_AGENT` and `LOOP_AGENT` are containers that only run their children. `RAG_AGENT` searches one document store. Two settings add steps without a new type: `map_config` makes a parallel agent run one worker for each item of a list, and `transform_config` makes an LLM agent reshape lists without calling a model ([squad-design.md](references/squad-design.md), patterns 4a and 4b). |
 | Session | One conversation or run. Its id continues it later. |
 | Schedule | Sends a prompt to the orchestrator at set times. |
 
@@ -71,8 +71,9 @@ Use whichever is present. They reach the same platform with the same stored key.
 | Let agents act in the organization's own systems through typed actions a person approves: connections, drafts, dry runs, assignment to agents, runs and the run log (approving a draft or a waiting run is the user's step in the web app; a `simulate` connection tries the flow with nothing connected) | `actions_overview` → `actions_connection_create` → `actions_draft_create` → `actions_dry_run` → the user approves → `actions_agent_set` → `actions_run`, `actions_runs` (keys need `actions:read`, `actions:manage`, `actions:run`; see references/actions.md) | `api GET /actions/overview` |
 | Read, replace or extend one wiki page safely (empty text refused, the current page backed up under the kit home, written with the version that was read, read back and compared); mark a page as verified by a person; check the whole wiki (review due, broken `[[links]]`, orphans, empty pages, missing annotations, oversized pages — read-only, no model call) | `junis_wiki` with `action` get, put, append, verify or lint (put on an existing page needs `confirmed=true` after the user agreed; lint takes no `file_key`) | `wiki get\|put\|append\|verify <file_key>`, `wiki lint` |
 | Endpoints without a tool (Knowledge management, vault, schedule runs, partner accounts) | `junis_api` (`DELETE`, `PUT`, `PATCH` and POSTs that replace data need `confirmed=true`; the same calls on the command line stop with `needs_confirmation` until repeated with `--yes` after the user agreed) | `api <METHOD> <path>` |
-| Keep a whole squad as one file: export, plan against the live organization, apply | `squad_export` → `squad_plan` (with `document=@squad.json`) → `squad_apply` with the `plan_id` (see references/build-and-verify.md) | `tools call squad_plan document=@squad.json organization_id=<uuid>` |
-| See what an agent actually runs with; roll an agent back; narrow or confirm its tools | `get_agent_effective_config`, `list_agent_versions` → `preview_agent_rollback` → `rollback_agent`, `get_agent_tool_access` / `set_agent_enabled_tools` / `set_agent_confirmation_tools`, `get_tool_safety` (see references/improving.md) | `tools call get_agent_effective_config agent_id=<uuid> organization_id=<uuid>` |
+| Keep a whole squad as one file: export, plan against the live organization, apply, take an apply back | `squad_export` → `squad_plan` (with `document=@squad.json`) → `squad_apply` with the `plan_id`; `squad_rollback` with its `receipt.apply_id` (preview first, `confirm=true` after the user agrees) (see references/build-and-verify.md) | `tools call squad_plan document=@squad.json organization_id=<uuid>` |
+| Find out why a squad does badly and make it better: its health, what was tried before and what it did, how runs and conversations ended | `squad_health` → `get_agent_change_ledger` (before any change), `list_schedule_runs`, `get_agent_turn_outcomes`; every change carries a `change_note` you write yourself (see references/improving.md) | `tools call squad_health organization_id=<uuid>` |
+| See what an agent actually runs with; what changed between versions; roll an agent back; narrow or confirm its tools | `get_agent_effective_config`, `list_agent_versions` → `diff_agent_versions` → `preview_agent_rollback` → `rollback_agent`, `get_agent_tool_access` / `set_agent_enabled_tools` / `set_agent_confirmation_tools`, `get_tool_safety` (see references/improving.md) | `tools call get_agent_effective_config agent_id=<uuid> organization_id=<uuid>` |
 | See which tools a run called and which failed or were blocked (a run that says "tool not available", a schedule that did nothing) | `list_tool_calls` (by agent, tool, status, days), `tool_call_summary` (see references/schedules.md and references/improving.md) | `tools call list_tool_calls agent=<name> days=1 organization_id=<uuid>` |
 | Check instruction text | `junis_lint_instruction` | `lint <file>` |
 | Save the squad's current state | | `snapshot`, `snapshot diff <a> <b>` |
@@ -109,16 +110,17 @@ need two to four rows.
 | Instruction text, routing rules, secret references | [references/instructions.md](references/instructions.md) |
 | Results from one agent to the next | [references/handoff.md](references/handoff.md) |
 | Built-in abilities: search, files, code, media, judging, simulation, loops | [references/agent-tools.md](references/agent-tools.md) |
-| MCP server, Slack, OAuth app, secret, the user's computer, outside skills | [references/connections.md](references/connections.md) |
-| Answer from documents or data (Knowledge or RAG) | [references/knowledge.md](references/knowledge.md) |
+| MCP server, Slack, OAuth app, secret, the user's computer, outside skills; a skill's history, undoing a skill edit, a deleted skill back | [references/connections.md](references/connections.md) |
+| Answer from documents or data (Knowledge or RAG); Knowledge misses a fact unless the item is named; questions that must keep finding the same document | [references/knowledge.md](references/knowledge.md) |
 | An agent that acts in the user's own system (ticket, order, event): approved actions, their runs and approvals | [references/actions.md](references/actions.md) |
-| Personality, user memory, shared wiki | [references/memory-and-identity.md](references/memory-and-identity.md) |
-| Timetable, run now, scheduled results | [references/schedules.md](references/schedules.md) |
+| Personality, user memory (and what an agent saved after reading outside content), shared wiki | [references/memory-and-identity.md](references/memory-and-identity.md) |
+| Timetable, run now, scheduled results, success rules for a schedule, running only when the board has work | [references/schedules.md](references/schedules.md) |
 | Send a request, follow or stop it, read past runs, start runs from GitHub or CI events | [references/running.md](references/running.md) |
-| Wrong, empty, slow or expensive results; checking that a change broke nothing | [references/improving.md](references/improving.md) |
-| Work across days or sessions | [references/long-running.md](references/long-running.md) |
+| Wrong, empty, slow or expensive results; "why is this squad like this", "make it better"; what changed, did it help, take it back; checking that a change broke nothing | [references/improving.md](references/improving.md) |
+| Work across days or sessions; a shared task board that several agents work from | [references/long-running.md](references/long-running.md), and pattern 8 in [references/squad-design.md](references/squad-design.md) |
 | Website widget, public page, Slack app, sharing, team roles and who pays | [references/publishing.md](references/publishing.md) |
 | Accounts for another app's users | [references/partner-accounts.md](references/partner-accounts.md) |
+| The user's own app (web or mobile) with Junis as the whole back end: front-end token, feed, follow-ups, push | [references/app-users.md](references/app-users.md) |
 | A step only the user can do in the web app | [references/user-steps.md](references/user-steps.md) |
 | An error message | [references/troubleshooting.md](references/troubleshooting.md) |
 
@@ -135,8 +137,18 @@ Common combinations, with the trap each adds:
 - **An agent that writes to the user's system:** actions → connections (the
   secret, by name) → instructions (when to call `action_<name>`) → user-steps.
   Nothing is live until a person approves the draft in the web app.
+- **The user's own app with only a front end** (a personal assistant or
+  companion for the app's end users): partner-accounts → app-users →
+  squad-design → schedules. The organization key never goes into the app: the
+  front end uses an app-user token. Nothing reaches the user from an
+  unattended run unless the agent has `notify_user`.
 - **The user's computer on a timetable:** connections (the user's computer) →
   schedules. An offline machine is skipped silently.
+- **A squad that should do better:** improving (health → ledger → one
+  change with a `change_note` → the platform measures the next scheduled
+  runs) → schedules (success rules, so the next runs are judged) → the
+  reference of whatever you change. Read the ledger again in the next
+  conversation; offer a rollback only after the user agrees.
 - **A cheaper squad:** improving → models. The kit cannot see spending; the
   payer reads it on the usage page.
 - **An empty scheduled result:** schedules (reading results) → improving → handoff.

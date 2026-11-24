@@ -2,6 +2,7 @@
 // rules of the Agent Skills specification and of the agent clients, so a
 // well-meant edit cannot quietly make the kit unloadable somewhere.
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -148,6 +149,12 @@ describe('reference files', () => {
       'retry_after', 'add_objective',
       // The orchestrator's own-schedule tools (2026-11-12): tools of agents inside Junis, not in the MCP catalogue.
       'list_my_schedules', 'create_my_schedule', 'update_my_schedule', 'delete_my_schedule',
+      // Conversation notes (2026-11-20): an agent tool inside Junis, attached by an admin; not in the MCP catalogue.
+      'send_to_conversation',
+      // Room tools (2026-11-23): tools of a user's own assistant inside Junis, attached by an admin; not in the MCP catalogue.
+      'list_my_rooms',
+      // A field of a squad apply's receipt (2026-11-22), not a tool; it only shares the apply_ prefix.
+      'apply_id',
     ]);
     // actions_* and knowledge_* were never checked against the catalogue before (2026-11-09 review); search_* stays out because
     // the built-in agent tools (search_mcp_tool, search_rag_documents, search_conversations) share that prefix
@@ -168,9 +175,9 @@ describe('reference files', () => {
       'admin', 'admin/api-keys', 'admin/audit', 'admin/dashboard', 'admin/schedules', 'auth/api-key', 'auth/device', 'chat',
       'connect', 'content', 'embed', 'login', 'memory', 'memory/edit', 'onboarding', 'privacy', 'publish', 'quick-actions',
       'refund', 'settings/api-keys', 'settings/organization', 'shared', 'showcase', 'slack', 'slack/success', 'subscription',
-      'team', 'team/actions', 'team/agent-proposals', 'team/agent-versions', 'team/audit', 'team/compliance', 'team/content', 'team/devices',
+      'team', 'team/actions', 'team/agent-proposals', 'team/agent-versions', 'team/audit', 'team/board', 'team/compliance', 'team/content', 'team/devices',
       'team/integrations', 'team/knowledge', 'team/knowledge/graph', 'team/mcp-skills', 'team/members', 'team/orchestration',
-      'team/organizations', 'team/public', 'team/rag-knowledge', 'team/security-incidents', 'team/simulations', 'team/skills',
+      'team/organizations', 'team/public', 'team/published', 'team/rag-knowledge', 'team/security-incidents', 'team/simulations', 'team/skills',
       'team/soul', 'team/task-planning', 'team/tools-guide', 'team/wiki', 'terms', 'usage',
     ]);
     for (const file of [...references.map((name) => path.join('references', name)), 'SKILL.md']) {
@@ -317,3 +324,54 @@ describe('repository hygiene', () => {
     assert.equal(execFileSync(process.execPath, [hook], { input: 'not json', encoding: 'utf8' }), '', 'fails open');
   });
 });
+
+// The `window.junis` instruction text and the `space-builder` bundle are copies of files in the Junis repository
+// (app/docs/HTML_PREVIEW_PUBLISH_RUNTIME.md section 7 and app/domains/spaces/skill_bundle/space-builder/). The same
+// hash is pinned there (app/tests/unit/test_space_builder_skill_2026_11_19.py) and in junis-magic, so an edit in
+// one place fails here until all copies match. To update: copy the files from the Junis repository unchanged and
+// put the new SHA-256 values below.
+describe('window.junis text and the space-builder bundle match the platform', () => {
+  const WINDOW_JUNIS_TEXT_SHA256 = '938ec562516704712558c147235759d4432c6f0c5be97838cf4ddde5121157a5';
+  const BUNDLE_SHA256 = {
+    'SKILL.md': '2f419fbaf81b1bd2fe40186659b36fc763566e9160d1461cb9cdcdeaac790d06',
+    'references/window-junis.md': 'e2b6c76058adcad26ff1ead0204f6086f06840b534f4ac23a4c6664ab23fcea8',
+    'skeletons/canvas2d-2.txt': '0efb3826936468447c19a7787230e71963bd00407a66d8f6cabcfb33b9019edb',
+    'skeletons/three-2.txt': '1bd358a13c62557ebc48de5145bbfecc566710fd1551a3ce1e78eeb698c6d1a2',
+  };
+  const BUNDLE = path.join(SKILL_DIR, 'assets', 'space-builder');
+  const sha256 = (data) => crypto.createHash('sha256').update(data).digest('hex');
+  const HEAD = 'Saving and leaderboards on published pages';
+  // From "```text\n" plus the heading line to the next "\n```".
+  const canonicalText = (text) => {
+    const start = text.indexOf('```text\n' + HEAD);
+    assert.ok(start >= 0, 'the window.junis text block is missing');
+    const end = text.indexOf('\n```', start + 8);
+    return text.slice(start + 8, end);
+  };
+
+  test('publishing.md carries the platform text unchanged', () => {
+    const text = canonicalText(fs.readFileSync(path.join(SKILL_DIR, 'references', 'publishing.md'), 'utf8'));
+    assert.ok(text.split('\n').at(-1).startsWith('16. '));
+    assert.equal(sha256(text), WINDOW_JUNIS_TEXT_SHA256);
+  });
+
+  test('the bundle is exactly the four platform files', () => {
+    const files = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else files.push(path.relative(BUNDLE, full).split(path.sep).join('/'));
+      }
+    };
+    walk(BUNDLE);
+    assert.deepEqual(files.sort(), Object.keys(BUNDLE_SHA256).sort());
+    for (const [name, hash] of Object.entries(BUNDLE_SHA256)) assert.equal(sha256(fs.readFileSync(path.join(BUNDLE, name))), hash, name);
+  });
+
+  test('the bundle reference holds the same text as publishing.md', () => {
+    const text = canonicalText(fs.readFileSync(path.join(BUNDLE, 'references', 'window-junis.md'), 'utf8'));
+    assert.equal(sha256(text), WINDOW_JUNIS_TEXT_SHA256);
+  });
+});
+

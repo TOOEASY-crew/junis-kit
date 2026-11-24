@@ -203,7 +203,7 @@ describe('error hints repeat nothing but scope names', () => {
 describe('one destructive list for annotations and the hook', () => {
   test('annotations follow the shared list', () => {
     for (const name of ['delete_agent', 'unlink_agent_mcp', 'unassign_skill', 'write_skill_file', 'switch_organization', 'update_soul_content', 'apply_team_changes', 'update_mcp_platform',
-      'rollback_agent', 'restore_soul_version', 'knowledge_changes_webhook_set', 'set_agent_enabled_tools', 'set_agent_confirmation_tools', 'set_tool_safety', 'set_flag_org_opt_out', 'squad_apply',
+      'rollback_agent', 'restore_soul_version', 'restore_skill_version', 'resolve_memory_provenance', 'squad_rollback', 'knowledge_changes_webhook_set', 'set_agent_enabled_tools', 'set_agent_confirmation_tools', 'set_tool_safety', 'set_flag_org_opt_out', 'squad_apply',
       'actions_run', 'actions_agent_set', 'actions_connection_update', 'actions_connection_delete', 'actions_draft_delete', 'actions_draft_update', 'actions_import_openapi']) {
       assert.equal(deriveAnnotations(name).destructiveHint, true, name);
       assert.equal(isDestructiveTool(name), true, name);
@@ -222,6 +222,27 @@ describe('one destructive list for annotations and the hook', () => {
     assert.equal(destructiveApiReason('GET', '/management/agents/a1/effective', {}), '');
     assert.match(destructiveApiReason('POST', '/management/squad/apply', { body: {} }), /squad document/);
     assert.equal(destructiveApiReason('POST', '/management/squad/plan', { body: {} }), '');
+  });
+
+  test('restoring a skill version, undoing a memory write and confirming a squad rollback ask first; previews, keeps and reads do not', () => {
+    assert.match(destructiveReason('restore_skill_version', { skill_id: 's1', version: 3 }), /earlier version/);
+    assert.match(destructiveReason('resolve_memory_provenance', { item_id: 'm1', action: 'undo' }), /removes what the agent wrote/);
+    assert.match(destructiveReason('resolve_memory_provenance', { item_id: 'm1', action: ' UNDO ' }), /removes what the agent wrote/);
+    assert.equal(destructiveReason('resolve_memory_provenance', { item_id: 'm1', action: 'keep' }), '');
+    for (const name of ['diff_skill_versions', 'list_skill_versions', 'get_skill_version', 'list_memory_provenance', 'diff_agent_versions', 'get_agent_change_ledger', 'squad_health']) {
+      assert.equal(destructiveReason(name, {}), '', name);
+    }
+    assert.match(destructiveApiReason('POST', '/management/skills/s1/versions/restore', { body: { version: 3 } }), /earlier version/);
+    assert.match(destructiveApiReason('POST', '/api/external/management/memory/provenance/m1/undo', { body: {} }), /removes what the agent wrote/);
+    assert.equal(destructiveApiReason('POST', '/management/memory/provenance/m1/keep', { body: {} }), '');
+    assert.equal(destructiveApiReason('GET', '/management/skills/s1/versions/diff', {}), '');
+    assert.match(destructiveApiReason('POST', '/management/squad/rollback', { body: { apply_id: 'a1', confirm: true } }), /before the apply/);
+    assert.equal(destructiveApiReason('POST', '/management/squad/rollback', { body: { apply_id: 'a1' } }), '', 'a preview is not asked');
+    assert.equal(destructiveApiReason('GET', '/management/squad/receipts', {}), '');
+    assert.match(destructiveReason('squad_rollback', { apply_id: 'a1', confirm: true }), /before the apply/);
+    assert.match(destructiveReason('squad_rollback', { apply_id: 'a1', confirm: 'true', force_drifted: true }), /before the apply/);
+    assert.equal(destructiveReason('squad_rollback', { apply_id: 'a1' }), '', 'the preview is not asked');
+    assert.equal(destructiveReason('squad_receipts', {}), '');
   });
 
   test('reasons cover the known destructive cases', () => {
