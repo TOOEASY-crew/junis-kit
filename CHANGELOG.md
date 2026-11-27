@@ -6,6 +6,21 @@ release tags users pin with `JUNIS_KIT_REF`.
 
 ## [Unreleased]
 
+- Apps and games on published pages (platform changes of 2026-11-25 to 2026-11-27).
+  `references/publishing.md` and the bundled `space-builder` skill now say:
+  every agent that writes replies gets the built-in `space_app_guide` tool, so a new
+  squad needs no copy of the sandbox rules in its instruction (turn it off per
+  organization or per agent with `PUT /management/app-guide`); an organization can
+  also give its agents `space_check(html)` to check a page before they answer.
+  `localStorage` works and is kept for each viewer. Attached files, the camera, the
+  microphone, photo picking and saving a file work through standard browser APIs,
+  with the viewer asked on each visit. `window.junis.llm.complete` gives an app one
+  AI answer per call, billed to the organization that published the app; where
+  members pay for their own usage it stays off for published apps until an admin
+  turns it on. Storage limits are now 8 MB and 1,024 keys per viewer and app.
+  New bundle file `references/data-and-devices.md` (attached files, camera,
+  microphone, saving a file, tilt, and data for apps people keep using).
+
 - `references/agent-tools.md`: what `custom_api_call` returns for a response that is not UTF-8
   (the declared charset; Korean CP949 with an `encoding_note` when the API declared none and
   the bytes look Korean), and the `{"binary": true, …}` shape for files and unreadable text.

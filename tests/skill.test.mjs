@@ -331,10 +331,11 @@ describe('repository hygiene', () => {
 // one place fails here until all copies match. To update: copy the files from the Junis repository unchanged and
 // put the new SHA-256 values below.
 describe('window.junis text and the space-builder bundle match the platform', () => {
-  const WINDOW_JUNIS_TEXT_SHA256 = '938ec562516704712558c147235759d4432c6f0c5be97838cf4ddde5121157a5';
+  const WINDOW_JUNIS_TEXT_SHA256 = '6e0256e2e0a33b765b2d1818058b23c98202f28d2b6dc6fd568dbb7dd006197a';
   const BUNDLE_SHA256 = {
-    'SKILL.md': '2f419fbaf81b1bd2fe40186659b36fc763566e9160d1461cb9cdcdeaac790d06',
-    'references/window-junis.md': 'e2b6c76058adcad26ff1ead0204f6086f06840b534f4ac23a4c6664ab23fcea8',
+    'SKILL.md': '022cc55c81f570fbe84e40105db2e4ca89022213bf18f625b86c964fbba70340',
+    'references/data-and-devices.md': 'a9ac8f803f1feef9d3e6ea4aa05af8fa35f02d77a0819ae6e7b8d70a6cdecb88',
+    'references/window-junis.md': 'a6dab19406e57555f5f82fa69d51e834534414f990c7f58ed115d6152742c235',
     'skeletons/canvas2d-2.txt': '0efb3826936468447c19a7787230e71963bd00407a66d8f6cabcfb33b9019edb',
     'skeletons/three-2.txt': '1bd358a13c62557ebc48de5145bbfecc566710fd1551a3ce1e78eeb698c6d1a2',
   };
@@ -351,11 +352,11 @@ describe('window.junis text and the space-builder bundle match the platform', ()
 
   test('publishing.md carries the platform text unchanged', () => {
     const text = canonicalText(fs.readFileSync(path.join(SKILL_DIR, 'references', 'publishing.md'), 'utf8'));
-    assert.ok(text.split('\n').at(-1).startsWith('16. '));
+    assert.ok(text.split('\n').at(-1).startsWith('17. '));
     assert.equal(sha256(text), WINDOW_JUNIS_TEXT_SHA256);
   });
 
-  test('the bundle is exactly the four platform files', () => {
+  test('the bundle is exactly the five platform files', () => {
     const files = [];
     const walk = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

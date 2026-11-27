@@ -103,14 +103,58 @@ the domain is not allowed. Never put the API key in browser code.
 
 An HTML result runs in a sandboxed frame with no access to the Junis page, in
 the chat preview and on `/publish/<slug>` alike (measured 2026-11-19 in
-Chromium and WebKit). State these in the agent's instruction; nothing else
+Chromium and WebKit). Since 2026-11-25 every agent that writes replies gets
+the built-in tool `space_app_guide` (these rules, `window.junis` and two tested
+game skeletons) and reads it before it writes an app or game, so a new squad
+needs no copy of these rules in its instruction. The organization turns it off
+in Team settings or with `junis_api PUT /management/app-guide {"enabled": false}`
+(one agent: `{"off_agents": ["<agent id>", …]}` — the whole list). Agents that
+reply in JSON (output schema), transform steps, knowledge agents and agents
+with no tools at all never get it. An organization can also turn on "Let
+agents check their apps before they answer" (`{"browser_checks": true}` on the
+same endpoint, off by default): those agents then get `space_check(html)` too.
+The agent passes the page to it before answering, fixes what it reports, and
+puts the page it passed in its reply. Static checks are free; where "Browser
+checks for HTML pages" is also on, the page is opened in a real headless
+browser (at most 3 times per reply, about $0.01 each, billed to the person in
+the conversation). It costs tokens: the page is written once per check and
+once more in the reply, and that last copy is typed again by the model, so it
+can differ slightly from the checked one. Where the guide is off, state these in the agent's instruction; nothing else
 enforces them:
 
 - One complete HTML document in one `html` code block; no separate files.
-- No browser storage: `localStorage`, `sessionStorage` and `indexedDB` throw
-  `SecurityError` and stop the script. To keep progress, use
-  `window.junis.storage` (below): signed-in viewers keep it on their account,
-  guests on that device. Without it, state lives in memory only.
+- Browser storage: `localStorage` works. On the published page it is kept for
+  each viewer of the app (signed-in viewers on their account, 256 KB; guests
+  on that device, 64 KB) and `sessionStorage` lasts while the page is open.
+  `indexedDB` and `document.cookie` throw or keep nothing. Data that keeps
+  growing (ledger, notes, journal) goes into `window.junis.storage`, one key
+  per record or month; data everyone sees (votes, a team list) goes into its
+  shared scope, never `localStorage` (below).
+- Files and devices (since 2026-11-26): the `https://` address of a file the
+  user attached or the agent generated works as an image, sound or video
+  source; never invent an address. `<input type="file" accept="image/*">`
+  picks or takes a photo. `navigator.mediaDevices.getUserMedia()` works: the
+  platform asks the viewer to allow that page on each visit and then hands
+  over a normal `MediaStream`; handle `NotAllowedError`. `<a download>` with a
+  blob or data address saves a file after the viewer confirms. Location,
+  speech recognition and screen capture do not work. The agent's guide part
+  `references/data-and-devices.md` has the details. An organization turns
+  the camera, microphone and file saving off for its pages in Team settings or
+  with `junis_api PUT /management/app-guide {"device_access": false}`.
+- AI while the app runs (2026-11-26): `await window.junis.llm.complete({prompt, system})`
+  returns `{ok:true, text}` (with `json: true` also `data`, the parsed answer) — one answer per call, made when the person
+  acts, never in a loop. Calls from a published app are billed to the organization
+  that made it (its owner), whoever is viewing; in the chat preview the member who
+  previews pays as in chat. Members and the app users the organization created can
+  use it, guests get `sign_in`. Limits: 8,000 characters of prompt, 10 calls a minute
+  and 200 a day per viewer, 1,000 a day per app, 3,000 a day per organization. Nothing from the
+  organization (knowledge, memory, tools) is sent. An organization turns it off with
+  `{"llm": false}` on the same `/management/app-guide`, and can let anyone signed in
+  use it with `{"llm_public": true}`. In an organization where members pay for their
+  own usage, published apps cannot use it until an admin turns it on (`{"llm": true}`
+  or Team settings), because those calls are billed to the owner; the chat preview
+  works either way.
+  Never put an API key in a page.
 - Scripts load only from `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`,
   `unpkg.com`, `cdn.tailwindcss.com` and `esm.sh`; on the published page any
   other host is blocked without a visible error. Styles and fonts: the first three and Google Fonts.
@@ -122,7 +166,7 @@ enforces them:
   a user action. Size to `100dvh`. The JUNIS mark on a published page is a
   strip below the frame, so it covers no part of the page.
 - Games: update on a fixed time step with a capped frame delta; draw art in
-  code (canvas, CSS, shapes). Check portrait and landscape: panels and HUD
+  code (canvas, CSS, shapes) unless the user gave a file. Check portrait and landscape: panels and HUD
   that vanish only in landscape were a common defect in test builds (5 of 6).
   Keep start and end overlays off the controls, and CSS class names distinct.
 - three.js: pin a version and import it as a module through an import map
@@ -142,16 +186,17 @@ A published page that mentions `window.junis` gets saved data per viewer,
 shared data, a leaderboard and pause handling without server code. The
 platform adds a small SDK to the frame only for such pages; the frame never
 receives a token, and the page sees a per-app pseudonymous viewer id, not who
-the viewer is. Put this text in the instruction of an agent that makes apps or
-games (not in a global prompt):
+the viewer is. `space_app_guide` already gives this text to the agent; where
+that tool is off, put this text in the instruction of an agent that makes apps
+or games (not in a global prompt):
 
 ```text
-Saving and leaderboards on published pages — window.junis (optional; a page that never mentions window.junis gets no SDK)
+Saving and leaderboards on published pages — window.junis (optional; the platform adds it only to pages whose text contains window.junis or localStorage)
 1. Always write `window.junis.…` in full (the SDK is added only to pages that contain that text) and `await` each call inside `<script type="module">` or an async function. No call throws or rejects. `null` = not available on this page (no host, saves off, or line 6's guest case): carry on without it. storage.list, run.start and leaderboard.list fail only with `null`; the other calls fail with `{ok:false, code, reason}` — code conflict, quota, invalid, denied, not_found, throttled, unavailable (unreachable now) or timeout (no answer in 15 s; it may still have happened).
 2. Start: `const ctx = await window.junis.ready()` → ctx.viewer {id, name ('' unless the player is listed on the leaderboard), isGuest, isOwner}, ctx.locale, ctx.timeZone, ctx.now (ISO time; server time on a published page). Begin the app after this line.
 3. Save: `await window.junis.storage.set('save', obj)` → `{ok:true, etag}` · Load: `const r = await window.junis.storage.get('save'); if (r && r.ok && r.exists) state = r.value;` · Delete: `await window.junis.storage.delete('save')` · List: `const l = await window.junis.storage.list({prefix:'slots/'})` → `{keys:[{key, etag, bytes}]}`.
-4. Limits: a key is 1–128 characters, an ASCII letter or digit first, then ASCII letters, digits, `_`, `.`, `/` or `-` (`save`, `slots/1`). A value is plain JSON nested at most 64 levels, 64 KB per key; 1 MB and 256 keys per viewer. Signed-in viewers keep saves on their account; guests keep them on this device only, 64 KB for the whole app.
-5. Budget per viewer per minute: 30 writes (set, delete and incr together, at most 10 of them shared), 12 run.start, 6 run.end; keep reads under 60, and all calls together under 20 a second and 300 a minute. Autosave at most every 3 s. Over budget a call returns `{ok:false, code:'throttled', retryAfterMs}` (run.start and the list calls: `null`) and nothing was written: wait that long, then call again. Retry unavailable or timeout a few seconds later, a few times at most — except an incr that timed out (it may have counted).
+4. Limits: a key is 1–128 characters, an ASCII letter or digit first, then ASCII letters, digits, `_`, `.`, `/` or `-` (`save`, `slots/1`). A value is plain JSON nested at most 64 levels, 64 KB per key; 8 MB and 1,024 keys per viewer. Signed-in viewers keep saves on their account; guests keep them on this device only, 64 KB for the whole app.
+5. Budget per viewer per minute: 30 writes (set, delete and incr together, at most 10 of them shared), 12 run.start, 6 run.end; keep reads under 60, and all calls together under 20 a second and 300 a minute. Autosave at most every 5 s (with line 14's localStorage batches that stays under 30). Over budget a call returns `{ok:false, code:'throttled', retryAfterMs}` (run.start and the list calls: `null`) and nothing was written: wait that long, then call again. Retry unavailable or timeout a few seconds later, a few times at most — except an incr that timed out (it may have counted).
 6. Shared data everyone can read: pass `{scope:'shared'}` as the last argument of get/set/delete or inside list's options (16 KB per key). Only signed-in viewers write; for guests a shared set, delete, incr or list returns `null`. Counter: `const c = await window.junis.storage.incr('votes/a', 1)` → `{ok:true, value}` (within ±9,007,199,254,740,991; decimals add as decimals, 0.1 three times is 0.3); read it with `window.junis.storage.get('votes/a', {scope:'shared'})`.
 7. Safe update: `window.junis.storage.set(key, value, {ifMatch: r.etag})` — an etag is an opaque string or null, pass it back unchanged. On `{ok:false, code:'conflict', current:{etag, value}}` merge with `current.value` and save again with `{ifMatch: current.etag}`. `{ifNoneMatch:'*'}` creates only if the key is missing; never pass it together with ifMatch.
 8. If a get did not return a value (refused or timed out), a later set of that key without ifMatch only creates it: when the account already holds a value you get the same `conflict` instead of overwriting it — handle it as in line 7.
@@ -160,9 +205,10 @@ Saving and leaderboards on published pages — window.junis (optional; a page th
 11. Declare the board once near the top of <head>: <script type="application/json" id="junis-space">{"schema":"junis.space/v1","leaderboards":[{"key":"main","label":"High score","sort":"desc"}]}</script> — use "sort":"asc" when lower is better (time attack).
 12. Optional anti-cheat limits go in the same JSON as "score":{"max":100000,"maxPerSecond":50,"minRunMs":3000}: max and min = bounds of an honest score, minRunMs = shortest possible round, maxPerSecond = most points per second between run.start and run.end (not checked for "asc"). A score outside them stays private to the player and no name prompt appears, so set each about twice as loose as the best honest play, or leave it out.
 13. The platform freezes requestAnimationFrame, timers and Web Audio (AudioContext; one you suspend yourself stays suspended) while the tab is hidden or the leaderboard is open, and performance.now() does not jump afterwards: use performance.now(), not Date.now(), for game time. `window.junis.on('pause', fn)` / `window.junis.on('resume', fn)`: show a paused state and stop what is not frozen (CSS animations, <audio>/<video>).
-14. Never use localStorage, sessionStorage, indexedDB or document.cookie — storage access throws in this frame and cookies are not kept.
+14. localStorage works: on a published page it is kept for each viewer of this app like a save (signed-in viewers on their account, 256 KB for all of it; guests on this device, 64 KB; it is sent in batches at most every 4 s, and each batch counts as one of line 5's 30 writes a minute). It is connected only when the page's own text contains the word localStorage — a library loaded from a CDN that saves on its own is kept only then, so mention localStorage once in your script. sessionStorage lasts while the page is open. Never use indexedDB or document.cookie — they throw in this frame or keep nothing.
 15. In the chat preview saves and scores last only while the preview is open; they become real after Publish. In a downloaded file `ready()` still resolves and the storage, run and leaderboard.list calls return `null`.
 16. Publishing an edited result: choose "Update link" to keep the same address, saves and leaderboard.
+17. AI while the app runs (a chat, a summary, a quiz from the user's notes): `const r = await window.junis.llm.complete({prompt, system})` (or a prompt string) → `{ok:true, text}` — one plain-text answer, no streaming, up to about a minute; prompt up to 8,000 characters, system up to 2,000. For structure ask for JSON in the prompt and pass `json: true` → `r.data` is the parsed value (on unreadable JSON you get `{ok:false, code:'invalid', text}`); never write code that strips backtick fences. Call it only when the person acts (a button, a submit) — never in a loop, a timer or every frame: each call is billed to the organization that made the app and limited to 10 a minute and 200 a day per viewer (1,000 a day per app). Failures: `sign_in` (a guest — say "Sign in to use AI"), `unavailable` (turned off, not for this viewer, or no answer), `quota` (no credit or today's limit), `throttled` (wait `retryAfterMs`), `invalid`, `timeout`. Show a working state while waiting and keep the rest of the app usable without AI. In the chat preview it is real, for members of the team, and billed to the person previewing; in a downloaded file it returns `null`. Never put an API key or another AI service's address in a page.
 ```
 
 What the viewer sees: a strip below the frame shows the save state ("Saved",
@@ -248,7 +294,9 @@ scripts or styles from anywhere except three.js 0.187.0 on jsDelivr
 #### Give a game-making agent the skeletons
 
 `assets/space-builder/` in this skill holds a Junis skill: `SKILL.md`, the
-`window.junis` text above as `references/window-junis.md`, and two tested
+`window.junis` text above as `references/window-junis.md`,
+`references/data-and-devices.md` (attached files, camera, microphone, photo
+picking, saving a file, tilt, and data for apps people keep using), and two tested
 skeletons (`skeletons/canvas2d-2.txt` for 2D canvas, `skeletons/three-2.txt`
 for three.js 0.187.0). An agent that has it copies a skeleton and writes only
 inside its marked regions; input, a fixed time step, pause, the start and end
